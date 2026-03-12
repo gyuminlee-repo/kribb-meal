@@ -71,7 +71,8 @@ APPS_SCRIPT_URL=아직비워둠
 #### 4-1. 크롤링이 되는지 확인
 
 ```bash
-LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-check.mjs
+cd /mnt/d/_workspace/prototype
+LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-check.mjs
 ```
 
 성공하면 터미널에 오늘 식단이 출력됨.
@@ -80,7 +81,7 @@ LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-check.mjs
 #### 4-2. Apps Script로 데이터가 전달되는지 확인
 
 ```bash
-LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs test
+LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs test
 ```
 
 `Apps Script 응답: {"ok":true,"users":0}` 같은 메시지가 나오면 성공.
@@ -95,7 +96,7 @@ LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs test
 #### 4-4. 브로드캐스트 테스트
 
 ```bash
-LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs send
+LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs send
 ```
 
 봇을 추가한 모든 사람에게 오늘 식단이 전송됨.
@@ -133,7 +134,7 @@ crontab -e
 실행할 때 `LD_LIBRARY_PATH`를 반드시 붙여야 함:
 
 ```bash
-LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs test
+LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs test
 ```
 
 ### Apps Script 코드를 수정했는데 반영이 안 돼요
@@ -153,5 +154,5 @@ LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs test
 WSL에서 아직 오늘 식단을 크롤링하지 않은 상태. 아래 명령어로 데이터를 올려주면 됨:
 
 ```bash
-LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs test
+LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs test
 ```
