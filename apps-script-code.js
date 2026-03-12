@@ -61,26 +61,41 @@ function currentHour() {
   return new Date().getHours();
 }
 
+function currentMinute() {
+  return new Date().getMinutes();
+}
+
 function isUpdated(data) {
   return data && data.date === todayStr() && (data.breakfast || data.lunchA || data.dinner);
 }
 
 function notUpdatedMsg() {
   if (currentHour() < 8) {
-    return 'KRIBB meal (' + todayStr() + ')\n\nNot yet updated. Auto-send at 08:30.';
+    return 'KRIBB meal (' + todayStr() + ')\n\nNot yet updated. Auto-send at 11:00.';
   }
   return 'KRIBB meal (' + todayStr() + ')\n\nNot yet updated.';
 }
 
 function closedMsg() {
-  return 'KRIBB meal (' + todayStr() + ')\n\nToday\'s meals have ended.\nNew menu available tomorrow at 08:30.';
+  return 'KRIBB meal (' + todayStr() + ')\n\nToday\'s meals have ended.\nNew menu tomorrow at 11:00.';
+}
+
+function formatLunch(data) {
+  if (!isUpdated(data)) return notUpdatedMsg();
+  if (!data.lunchA) return 'No lunch info today.';
+  return '*Lunch* (11:30-13:00)\n\n' + data.lunchA;
+}
+
+function formatDinner(data) {
+  if (!isUpdated(data)) return notUpdatedMsg();
+  if (!data.dinner) return 'No dinner info today.';
+  return '*Dinner* (18:00-19:00)\n\n' + data.dinner;
 }
 
 function formatAll(data) {
   if (currentHour() >= 19) return closedMsg();
   if (!isUpdated(data)) return notUpdatedMsg();
   var msg = '*KRIBB meal* (' + data.date + ')\n';
-  if (data.breakfast) msg += '\n*Breakfast* (7:30-9:00)\n' + data.breakfast + '\n';
   if (data.lunchA) msg += '\n*Lunch* (11:30-13:00)\n' + data.lunchA + '\n';
   if (data.dinner) msg += '\n*Dinner* (18:00-19:00)\n' + data.dinner + '\n';
   return msg;
@@ -91,6 +106,16 @@ function formatSingle(title, time, data, field) {
   if (!isUpdated(data)) return notUpdatedMsg();
   if (!data[field]) return 'No ' + title + ' info today.';
   return '*' + title + '* (' + time + ')\n\n' + data[field];
+}
+
+// /test: 현재 저장된 식단을 바로 확인 (브로드캐스트 미리보기)
+function formatTest(data) {
+  if (!isUpdated(data)) return notUpdatedMsg();
+  var msg = '[TEST] *KRIBB meal* (' + data.date + ')\n';
+  if (data.lunchA) msg += '\n*Lunch* (11:30-13:00)\n' + data.lunchA + '\n';
+  if (data.dinner) msg += '\n*Dinner* (18:00-19:00)\n' + data.dinner + '\n';
+  msg += '\n-- This is what users will receive --';
+  return msg;
 }
 
 function pollMessages() {
@@ -112,20 +137,54 @@ function pollMessages() {
     addUser(chatId);
 
     if (text === '/start') {
-      sendMessage(chatId, '*KRIBB Meal Bot*\n\nAuto-send weekdays 08:30\n\n/breakfast\n/lunch\n/dinner\n/meal - all');
-    } else if (text === '/breakfast') {
-      sendMessage(chatId, formatSingle('Breakfast', '7:30-9:00', data, 'breakfast'));
+      sendMessage(chatId, '*KRIBB Meal Bot*\n\nAuto schedule:\n11:00 - Lunch menu\n17:30 - Dinner menu\n\nCommands:\n/lunch - Lunch\n/dinner - Dinner\n/meal - All\n/test - Preview');
     } else if (text === '/lunch') {
       sendMessage(chatId, formatSingle('Lunch', '11:30-13:00', data, 'lunchA'));
     } else if (text === '/dinner') {
       sendMessage(chatId, formatSingle('Dinner', '18:00-19:00', data, 'dinner'));
     } else if (text === '/meal') {
       sendMessage(chatId, formatAll(data));
+    } else if (text === '/test') {
+      sendMessage(chatId, formatTest(data));
     }
   }
 }
 
-// 19:00 자동 삭제 — pollMessages에서 매분 체크
+// 자동 전송 스케줄: 11:00 점심, 17:30 저녁
+function checkScheduledSend() {
+  var hour = currentHour();
+  var minute = currentMinute();
+  var today = todayStr();
+  var data = getMeal();
+
+  if (!isUpdated(data)) return;
+
+  // 11:00 점심 자동 전송
+  var lunchSent = SCRIPT_PROPS.getProperty('lunchSentDate') || '';
+  if (hour === 11 && minute === 0 && lunchSent !== today) {
+    SCRIPT_PROPS.setProperty('lunchSentDate', today);
+    var users = getUsers();
+    var msg = formatLunch(data);
+    for (var i = 0; i < users.length; i++) {
+      try { sendMessage(users[i], msg); } catch (err) {}
+    }
+    Logger.log('Lunch broadcast sent to ' + users.length + ' users');
+  }
+
+  // 17:30 저녁 자동 전송
+  var dinnerSent = SCRIPT_PROPS.getProperty('dinnerSentDate') || '';
+  if (hour === 17 && minute === 30 && dinnerSent !== today) {
+    SCRIPT_PROPS.setProperty('dinnerSentDate', today);
+    var users = getUsers();
+    var msg = formatDinner(data);
+    for (var i = 0; i < users.length; i++) {
+      try { sendMessage(users[i], msg); } catch (err) {}
+    }
+    Logger.log('Dinner broadcast sent to ' + users.length + ' users');
+  }
+}
+
+// 19:00 데이터 삭제
 function checkAndClear() {
   var hour = currentHour();
   var cleared = SCRIPT_PROPS.getProperty('clearedDate') || '';
@@ -142,16 +201,7 @@ function doPost(e) {
 
   if (body.action === 'update_meal') {
     saveMeal(body.data);
-
-    if (body.broadcast) {
-      var users = getUsers();
-      var msg = formatAll(body.data);
-      for (var i = 0; i < users.length; i++) {
-        try { sendMessage(users[i], msg); } catch (err) {}
-      }
-    }
-
-    return ContentService.createTextOutput(JSON.stringify({ ok: true, users: users ? users.length : 0 }));
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, users: getUsers().length }));
   }
 
   return ContentService.createTextOutput('ok');
@@ -165,7 +215,6 @@ function setup() {
     ScriptApp.deleteTrigger(triggers[i]);
   }
 
-  // 1분마다 메시지 폴링 + 19시 데이터 삭제 체크
   ScriptApp.newTrigger('pollAndClean')
     .timeBased()
     .everyMinutes(1)
@@ -174,8 +223,8 @@ function setup() {
   Logger.log('Setup complete');
 }
 
-// 폴링 + 정리를 하나로 묶은 함수
 function pollAndClean() {
   checkAndClear();
+  checkScheduledSend();
   pollMessages();
 }
