@@ -136,17 +136,7 @@ function pollMessages() {
     var data = getMeal();
     addUser(chatId);
 
-    if (text === '/start') {
-      sendMessage(chatId, '*KRIBB Meal Bot*\n\nAuto schedule:\n11:00 - Lunch menu\n17:30 - Dinner menu\n\nCommands:\n/lunch - Lunch\n/dinner - Dinner\n/meal - All\n/test - Preview');
-    } else if (text === '/lunch') {
-      sendMessage(chatId, formatSingle('Lunch', '11:30-13:00', data, 'lunchA'));
-    } else if (text === '/dinner') {
-      sendMessage(chatId, formatSingle('Dinner', '18:00-19:00', data, 'dinner'));
-    } else if (text === '/meal') {
-      sendMessage(chatId, formatAll(data));
-    } else if (text === '/test') {
-      sendMessage(chatId, formatTest(data));
-    }
+    handleCommand(chatId, text);
   }
 }
 
@@ -196,31 +186,60 @@ function checkAndClear() {
   }
 }
 
+// 명령어 처리 (폴링 + 웹훅 공용)
+function handleCommand(chatId, text) {
+  var data = getMeal();
+  addUser(chatId);
+
+  if (text === '/start') {
+    sendMessage(chatId, '*KRIBB Meal Bot*\n\nAuto schedule:\n11:00 - Lunch menu\n17:30 - Dinner menu\n\nCommands:\n/lunch - Lunch\n/dinner - Dinner\n/meal - All\n/test - Preview');
+  } else if (text === '/lunch') {
+    sendMessage(chatId, formatSingle('Lunch', '11:30-13:00', data, 'lunchA'));
+  } else if (text === '/dinner') {
+    sendMessage(chatId, formatSingle('Dinner', '18:00-19:00', data, 'dinner'));
+  } else if (text === '/meal') {
+    sendMessage(chatId, formatAll(data));
+  } else if (text === '/test') {
+    sendMessage(chatId, formatTest(data));
+  }
+}
+
 function doPost(e) {
   var body = JSON.parse(e.postData.contents);
 
+  // WSL 데이터 업로드
   if (body.action === 'update_meal') {
     saveMeal(body.data);
     return ContentService.createTextOutput(JSON.stringify({ ok: true, users: getUsers().length }));
+  }
+
+  // 텔레그램 웹훅 (즉시 응답)
+  if (body.message && body.message.text) {
+    var chatId = body.message.chat.id;
+    var text = body.message.text.split('@')[0].trim();
+    handleCommand(chatId, text);
+    return ContentService.createTextOutput('ok');
   }
 
   return ContentService.createTextOutput('ok');
 }
 
 function setup() {
-  UrlFetchApp.fetch(TG_API + '/deleteWebhook');
-
+  // 기존 트리거 삭제
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++) {
     ScriptApp.deleteTrigger(triggers[i]);
   }
 
+  // 1분 트리거: 스케줄 전송 + 데이터 삭제 + 폴링 백업
   ScriptApp.newTrigger('pollAndClean')
     .timeBased()
     .everyMinutes(1)
     .create();
 
   Logger.log('Setup complete');
+  Logger.log('Now set webhook in browser:');
+  Logger.log('https://api.telegram.org/bot[TOKEN]/setWebhook?url=[APPS_SCRIPT_URL]');
 }
 
 function pollAndClean() {
