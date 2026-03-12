@@ -44,6 +44,11 @@ function getMeal() {
   return raw ? JSON.parse(raw) : null;
 }
 
+function clearMeal() {
+  SCRIPT_PROPS.deleteProperty('meal');
+  Logger.log('Meal data cleared');
+}
+
 function todayStr() {
   var t = new Date();
   var y = t.getFullYear();
@@ -52,15 +57,27 @@ function todayStr() {
   return y + '/' + m + '/' + d;
 }
 
+function currentHour() {
+  return new Date().getHours();
+}
+
 function isUpdated(data) {
   return data && data.date === todayStr() && (data.breakfast || data.lunchA || data.dinner);
 }
 
 function notUpdatedMsg() {
+  if (currentHour() < 8) {
+    return 'KRIBB meal (' + todayStr() + ')\n\nNot yet updated. Auto-send at 08:30.';
+  }
   return 'KRIBB meal (' + todayStr() + ')\n\nNot yet updated.';
 }
 
+function closedMsg() {
+  return 'KRIBB meal (' + todayStr() + ')\n\nToday\'s meals have ended.\nNew menu available tomorrow at 08:30.';
+}
+
 function formatAll(data) {
+  if (currentHour() >= 19) return closedMsg();
   if (!isUpdated(data)) return notUpdatedMsg();
   var msg = '*KRIBB meal* (' + data.date + ')\n';
   if (data.breakfast) msg += '\n*Breakfast* (7:30-9:00)\n' + data.breakfast + '\n';
@@ -70,6 +87,7 @@ function formatAll(data) {
 }
 
 function formatSingle(title, time, data, field) {
+  if (currentHour() >= 19) return closedMsg();
   if (!isUpdated(data)) return notUpdatedMsg();
   if (!data[field]) return 'No ' + title + ' info today.';
   return '*' + title + '* (' + time + ')\n\n' + data[field];
@@ -107,6 +125,18 @@ function pollMessages() {
   }
 }
 
+// 19:00 자동 삭제 — pollMessages에서 매분 체크
+function checkAndClear() {
+  var hour = currentHour();
+  var cleared = SCRIPT_PROPS.getProperty('clearedDate') || '';
+  var today = todayStr();
+
+  if (hour >= 19 && cleared !== today) {
+    clearMeal();
+    SCRIPT_PROPS.setProperty('clearedDate', today);
+  }
+}
+
 function doPost(e) {
   var body = JSON.parse(e.postData.contents);
 
@@ -135,10 +165,17 @@ function setup() {
     ScriptApp.deleteTrigger(triggers[i]);
   }
 
-  ScriptApp.newTrigger('pollMessages')
+  // 1분마다 메시지 폴링 + 19시 데이터 삭제 체크
+  ScriptApp.newTrigger('pollAndClean')
     .timeBased()
     .everyMinutes(1)
     .create();
 
   Logger.log('Setup complete');
+}
+
+// 폴링 + 정리를 하나로 묶은 함수
+function pollAndClean() {
+  checkAndClear();
+  pollMessages();
 }
