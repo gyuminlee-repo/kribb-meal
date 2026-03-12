@@ -96,7 +96,7 @@ crontab -e
 
 **libnspr4.so 에러** — `LD_LIBRARY_PATH="/home/gml/miniforge3/lib"` 붙이기
 
-**Apps Script 코드 수정 후** — 저장만으로 안 됨. 새 배포 필요. URL 바뀌면 .env + 웹훅 재설정.
+**Apps Script 코드 수정 후** — 저장만으로 안 됨. 배포 관리 → 연필 아이콘 → 버전 "새 버전" → 배포. `setup` 재실행 불필요 (재실행하면 웹훅이 삭제됨). URL이 바뀐 경우만 .env + 웹훅 재설정.
 
 **봇이 응답 안 함** — Apps Script 트리거 탭에서 `tick`이 1분 간격 등록 확인. 없으면 `setup` 재실행.
 

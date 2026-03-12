@@ -6,9 +6,11 @@
  *
  * 사용법:
  *   LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs
+ *   LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs --force
  *
- * cron (평일 08:00):
+ * cron (평일 08:00 + 재부팅):
  *   0 8 * * 1-5 cd /mnt/d/_workspace/prototype && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
+ *   @reboot sleep 15 && cd /mnt/d/_workspace/prototype && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
  *
  * 환경변수 (.env):
  *   KRIBB_ID, KRIBB_PW, APPS_SCRIPT_URL
@@ -90,14 +92,49 @@ async function uploadToAppsScript(data) {
   return await res.text();
 }
 
+// --- Check if already updated ---
+
+async function checkMeal() {
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'check_meal' }),
+  });
+  const json = JSON.parse(await res.text());
+  return json.updated === true;
+}
+
 // --- Main ---
+
+const force = process.argv.includes('--force');
+const ts = () => new Date().toISOString();
+
+// Weekend skip
+const day = new Date().getDay();
+if ((day === 0 || day === 6) && !force) {
+  console.log(`[${ts()}] Weekend — skip`);
+  process.exit(0);
+}
+
+// Duplicate check
+if (!force) {
+  try {
+    const updated = await checkMeal();
+    if (updated) {
+      console.log(`[${ts()}] Already updated — skip`);
+      process.exit(0);
+    }
+  } catch (err) {
+    console.warn(`[${ts()}] check_meal failed, proceeding:`, err.message);
+  }
+}
 
 try {
   const data = await crawlMeal();
-  console.log(`[${new Date().toISOString()}] ${data.date} crawled`);
+  console.log(`[${ts()}] ${data.date} crawled`);
   const res = await uploadToAppsScript(data);
   console.log('Apps Script:', res);
 } catch (err) {
-  console.error(`[${new Date().toISOString()}] Error:`, err.message);
+  console.error(`[${ts()}] Error:`, err.message);
   process.exit(1);
 }

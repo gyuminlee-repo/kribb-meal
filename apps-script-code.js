@@ -178,6 +178,12 @@ function pollMessages() {
 function doPost(e) {
   var body = JSON.parse(e.postData.contents);
 
+  // Check if meal data exists for today
+  if (body.action === 'check_meal') {
+    var data = getMeal();
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, updated: isUpdated(data) }));
+  }
+
   // WSL meal data upload
   if (body.action === 'update_meal') {
     saveMeal(body.data);
