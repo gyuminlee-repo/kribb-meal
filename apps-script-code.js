@@ -19,7 +19,7 @@ function tgSend(chatId, text) {
   UrlFetchApp.fetch(TG_API + '/sendMessage', {
     method: 'post',
     contentType: 'application/json',
-    payload: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'Markdown' })
+    payload: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML' })
   });
 }
 
@@ -75,20 +75,20 @@ function msgClosed() {
 
 function msgLunch(data) {
   if (!isUpdated(data) || !data.lunchA) return msgNotReady();
-  return '*Lunch* (11:30-13:00)\n\n' + data.lunchA;
+  return '<b>Lunch</b> (11:30-13:00)\n\n' + escHtml(data.lunchA);
 }
 
 function msgDinner(data) {
   if (!isUpdated(data) || !data.dinner) return msgNotReady();
-  return '*Dinner* (18:00-19:00)\n\n' + data.dinner;
+  return '<b>Dinner</b> (18:00-19:00)\n\n' + escHtml(data.dinner);
 }
 
 function msgAll(data) {
   if (now().h >= 19) return msgClosed();
   if (!isUpdated(data)) return msgNotReady();
-  var msg = '*KRIBB meal* (' + data.date + ')\n';
-  if (data.lunchA) msg += '\n*Lunch* (11:30-13:00)\n' + data.lunchA + '\n';
-  if (data.dinner) msg += '\n*Dinner* (18:00-19:00)\n' + data.dinner + '\n';
+  var msg = '<b>KRIBB meal</b> (' + data.date + ')\n';
+  if (data.lunchA) msg += '\n<b>Lunch</b> (11:30-13:00)\n' + escHtml(data.lunchA) + '\n';
+  if (data.dinner) msg += '\n<b>Dinner</b> (18:00-19:00)\n' + escHtml(data.dinner) + '\n';
   return msg;
 }
 
@@ -98,7 +98,11 @@ function msgTest(data) {
 }
 
 function msgHelp() {
-  return '*KRIBB Meal Bot*\n\nAuto schedule:\n11:00 - Lunch\n17:30 - Dinner\n\n/lunch - Lunch menu\n/dinner - Dinner menu\n/meal - All\n/test - Preview';
+  return '<b>KRIBB Meal Bot</b>\n\nAuto schedule:\n11:00 - Lunch\n17:30 - Dinner\n\n/lunch - Lunch menu\n/dinner - Dinner menu\n/meal - All\n/test - Preview';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 // --- Command handler (shared by webhook + polling) ---
