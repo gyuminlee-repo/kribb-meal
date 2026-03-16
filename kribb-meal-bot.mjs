@@ -41,16 +41,17 @@ if (!KRIBB_ID || !KRIBB_PW || !APPS_SCRIPT_URL) {
 
 async function getAiInsight(data) {
   if (!GEMINI_API_KEY) {
-    console.warn('GEMINI_API_KEY is missing in .env');
+    console.warn('GEMINI_API_KEY is missing in process.env');
     return "";
   }
+  console.log('Using GEMINI_API_KEY starting with:', GEMINI_API_KEY.substring(0, 4));
   try {
     const prompt = `너는 한국생명공학연구원(KRIBB)의 위트 있는 인공지능 영양사야. 
 오늘의 점심 메뉴는 [${data.lunchA}]이고, 저녁 메뉴는 [${data.dinner}]이야.
 연구원들이 힘내서 실험할 수 있도록, 메뉴와 관련된 과학 유머나 비유(DNA, PCR, 단백질, 세포 등)를 섞어서 짧고 강렬한 한 문장의 응원 멘트를 한국어로 작성해줘. 
 너무 길지 않게 딱 한 문장만!`;
 
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
