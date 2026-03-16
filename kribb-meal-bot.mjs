@@ -8,9 +8,9 @@
  *   LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs
  *   LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs --force
  *
- * cron (평일 08:00 + 재부팅):
- *   0 8 * * 1-5 cd /mnt/d/_workspace/prototype && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
- *   @reboot sleep 15 && cd /mnt/d/_workspace/prototype && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
+ * cron (평일 08:25 + 랜덤 0~600초 딜레이 + 재부팅):
+ *   25 8 * * 1-5 sleep $((RANDOM % 600)) && cd /mnt/d/_workspace/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
+ *   @reboot sleep 15 && cd /mnt/d/_workspace/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
  *
  * 환경변수 (.env):
  *   KRIBB_ID, KRIBB_PW, APPS_SCRIPT_URL

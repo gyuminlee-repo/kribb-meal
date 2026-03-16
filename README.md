@@ -8,9 +8,8 @@ KRIBB 내부망에서 텔레그램이 막혀있어서, Google Apps Script를 중
 
 ```
 WSL (KRIBB 내부망)              Google Apps Script             Telegram
-cron 08:00 → 크롤링 → POST →   저장
-                                11:00 점심 자동 전송 ────────→ 구독자
-                                17:30 저녁 자동 전송 ────────→ 구독자
+cron 08:25 → 크롤링 → POST →   저장
+                                사용자별 시간에 자동 전송 ──→ 구독자 (기본 11:00/17:30)
                                 19:00 데이터 삭제
                                 사용자 명령 즉시 응답 ←──────→ /lunch /dinner /meal
 ```
@@ -63,14 +62,15 @@ LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs
 # 텔레그램에서 /meal → 전체 식단 확인
 ```
 
-### 5. cron 등록 (평일 08:00)
+### 5. cron 등록 (평일 08:25 + 랜덤 딜레이)
 
 ```bash
 crontab -e
 ```
 
 ```
-0 8 * * 1-5 cd /mnt/d/_workspace/prototype && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
+SHELL=/bin/bash
+25 8 * * 1-5 sleep $((RANDOM % 600)) && cd /mnt/d/_workspace/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
 ```
 
 ## 텔레그램 명령어
@@ -82,14 +82,21 @@ crontab -e
 | `/dinner` | 저녁 (18:00~19:00) |
 | `/meal` | 전체 식단 |
 | `/test` | 브로드캐스트 미리보기 |
+| `/setlunch HH:MM` | 점심 알림 시간 변경 (08:00~14:59) |
+| `/setdinner HH:MM` | 저녁 알림 시간 변경 (15:00~19:00) |
+| `/setlunch reset` | 점심 알림 기본값(11:00) 복원 |
+| `/setdinner reset` | 저녁 알림 기본값(17:30) 복원 |
+| `/mute` | 자동 알림 끄기 |
+| `/unmute` | 자동 알림 켜기 |
+| `/settings` | 현재 설정 확인 |
 
 ## 자동 스케줄
 
 | 시간 | 동작 |
 |------|------|
-| 08:00 | WSL cron → 크롤링 + 데이터 업로드 |
-| 11:00 | 점심 메뉴 자동 전송 |
-| 17:30 | 저녁 메뉴 자동 전송 |
+| 08:25 | WSL cron → 크롤링 + 데이터 업로드 (±5분 랜덤) |
+| 사용자별 | 점심 알림 (기본 11:00) |
+| 사용자별 | 저녁 알림 (기본 17:30) |
 | 19:00 | 데이터 삭제 |
 
 ## 문제 해결
