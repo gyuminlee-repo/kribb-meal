@@ -51,7 +51,7 @@ async function getAiInsight(data) {
 연구원들이 힘내서 실험할 수 있도록, 메뉴와 관련된 과학 유머나 비유(DNA, PCR, 단백질, 세포 등)를 섞어서 짧고 강렬한 한 문장의 응원 멘트를 한국어로 작성해줘. 
 너무 길지 않게 딱 한 문장만!`;
 
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
