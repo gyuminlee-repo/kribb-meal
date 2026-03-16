@@ -140,12 +140,16 @@ function msgClosed() {
 
 function msgLunch(data) {
   if (!isUpdated(data) || !data.lunchA) return msgNotReady();
-  return '<b>Lunch</b> (11:30-13:00)\n\n' + escHtml(data.lunchA);
+  var msg = '<b>Lunch</b> (11:30-13:00)\n\n' + escHtml(data.lunchA);
+  if (data.insight) msg += '\n\n✨ <b>AI Insight</b>\n' + escHtml(data.insight);
+  return msg;
 }
 
 function msgDinner(data) {
   if (!isUpdated(data) || !data.dinner) return msgNotReady();
-  return '<b>Dinner</b> (18:00-19:00)\n\n' + escHtml(data.dinner);
+  var msg = '<b>Dinner</b> (18:00-19:00)\n\n' + escHtml(data.dinner);
+  if (data.insight) msg += '\n\n✨ <b>AI Insight</b>\n' + escHtml(data.insight);
+  return msg;
 }
 
 function msgAll(data) {
@@ -164,6 +168,7 @@ function msgTest(data) {
 
 function msgHelp() {
   return '<b>KRIBB Meal Bot</b>\n\n'
+    + '응답은 최대 1분 정도 소요될 수 있습니다.\n\n'
     + '<b>Menu</b>\n'
     + '/lunch - Lunch menu\n'
     + '/dinner - Dinner menu\n'

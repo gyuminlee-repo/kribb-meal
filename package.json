@@ -1,0 +1,9 @@
+{
+  "name": "kribb-meal",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "nodemailer": "^8.0.2",
+    "playwright": "1.58.2"
+  }
+}
