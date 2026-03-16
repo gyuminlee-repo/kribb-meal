@@ -50,19 +50,29 @@ APPS_SCRIPT_URL=나중에채움
    ```
    `{"ok":true}` 나오면 성공
 
-### 4. 테스트
+### 4. WSL 의존성 설치
 
 ```bash
-cd /mnt/d/_workspace/prototype
+cd /mnt/d/_workspace/kribb-meal
+npm install
+npx playwright install chromium
+```
+
+> Playwright의 Chromium이 `libnspr4.so` 등 시스템 라이브러리를 찾지 못하면 `LD_LIBRARY_PATH`를 지정해야 한다 (아래 참조).
+
+### 5. 테스트
+
+```bash
+cd /mnt/d/_workspace/kribb-meal
 
 # 크롤링 + 데이터 업로드
-LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs
+LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs
 
 # 텔레그램에서 /test → 식단 미리보기 확인
 # 텔레그램에서 /meal → 전체 식단 확인
 ```
 
-### 5. cron 등록 (평일 08:25 + 랜덤 딜레이)
+### 6. cron 등록 (평일 08:25 + 랜덤 딜레이)
 
 ```bash
 crontab -e
@@ -107,4 +117,53 @@ SHELL=/bin/bash
 
 **봇이 응답 안 함** — Apps Script 트리거 탭에서 `tick`이 1분 간격 등록 확인. 없으면 `setup` 재실행.
 
-**Not yet updated** — WSL에서 크롤링 스크립트 실행: `LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs`
+**Not yet updated** — WSL에서 크롤링 스크립트 실행: `LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs`
+
+## 새 컴퓨터에 설치하기
+
+기존에 Apps Script + 텔레그램 봇이 배포된 상태에서, 새 WSL 환경에 크롤러만 세팅하는 방법.
+
+1. **레포 클론**
+   ```bash
+   cd /mnt/d/_workspace
+   git clone https://github.com/gyuminlee-repo/kribb-meal.git
+   cd kribb-meal
+   ```
+
+2. **Node.js 확인** (v18+)
+   ```bash
+   node --version
+   ```
+
+3. **의존성 설치**
+   ```bash
+   npm install
+   npx playwright install chromium
+   ```
+
+4. **.env 생성**
+   ```bash
+   cat > .env << 'EOF'
+   KRIBB_ID=인트라넷아이디
+   KRIBB_PW=인트라넷비밀번호
+   APPS_SCRIPT_URL=기존배포된웹앱URL
+   EOF
+   ```
+
+5. **수동 테스트**
+   ```bash
+   LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs
+   ```
+   > `LD_LIBRARY_PATH`는 환경에 따라 다를 수 있음. Playwright가 libnspr4.so를 못 찾으면 해당 라이브러리가 있는 경로로 지정.
+
+6. **cron 등록**
+   ```bash
+   crontab -e
+   ```
+   ```
+   SHELL=/bin/bash
+   25 8 * * 1-5 sleep $((RANDOM % 600)) && cd /mnt/d/_workspace/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
+   @reboot sleep 15 && cd /mnt/d/_workspace/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
+   ```
+
+7. **확인**: 텔레그램에서 `/meal` 입력 → 식단 표시되면 완료
