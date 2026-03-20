@@ -15,6 +15,9 @@ var PROPS = PropertiesService.getScriptProperties();
 var DEFAULT_LUNCH = '11:00';
 var DEFAULT_DINNER = '17:30';
 
+var LUNCH_START_H = 11, LUNCH_START_M = 30;   // 11:30
+var DINNER_START_H = 18, DINNER_START_M = 0;   // 18:00
+
 // --- Telegram API ---
 
 function tgSend(chatId, text) {
@@ -139,6 +142,7 @@ function msgClosed() {
 }
 
 function msgLunch(data) {
+  if (now().h >= 19) return msgClosed();
   if (!isUpdated(data) || !data.lunchA) return msgNotReady();
   var msg = '<b>Lunch</b> (11:30-13:00)\n\n' + escHtml(data.lunchA);
   if (data.insight) msg += '\n\n✨ <b>AI Insight</b>\n' + escHtml(data.insight);
@@ -146,6 +150,7 @@ function msgLunch(data) {
 }
 
 function msgDinner(data) {
+  if (now().h >= 19) return msgClosed();
   if (!isUpdated(data) || !data.dinner) return msgNotReady();
   var msg = '<b>Dinner</b> (18:00-19:00)\n\n' + escHtml(data.dinner);
   if (data.insight) msg += '\n\n✨ <b>AI Insight</b>\n' + escHtml(data.insight);
@@ -270,6 +275,52 @@ function broadcast(msgFn) {
   Logger.log('Broadcast to ' + users.length + ' users');
 }
 
+// --- Catch-up: send to users whose alert time already passed (before meal starts) ---
+
+function catchUpSend() {
+  var data = getMeal();
+  if (!isUpdated(data)) return;
+
+  var t = now();
+  var prefs = getUserPrefs();
+  var sentLog = getSentLog();
+  var dirty = false;
+
+  for (var chatId in prefs) {
+    var p = prefs[chatId];
+    if (p.muted) continue;
+
+    var lunchTime = parseTime(p.lunch);
+    var dinnerTime = parseTime(p.dinner);
+
+    // Lunch: alert time passed + before 11:30 + not yet sent
+    if (lunchTime && data.lunchA
+        && (t.h > lunchTime.h || (t.h === lunchTime.h && t.m >= lunchTime.m))
+        && (t.h < LUNCH_START_H || (t.h === LUNCH_START_H && t.m < LUNCH_START_M))
+        && sentLog.lunch.indexOf(chatId) === -1) {
+      try {
+        tgSend(chatId, msgLunch(data));
+        sentLog.lunch.push(chatId);
+        dirty = true;
+      } catch (err) {}
+    }
+
+    // Dinner: alert time passed + before 18:00 + not yet sent
+    if (dinnerTime && data.dinner
+        && (t.h > dinnerTime.h || (t.h === dinnerTime.h && t.m >= dinnerTime.m))
+        && (t.h < DINNER_START_H || (t.h === DINNER_START_H && t.m < DINNER_START_M))
+        && sentLog.dinner.indexOf(chatId) === -1) {
+      try {
+        tgSend(chatId, msgDinner(data));
+        sentLog.dinner.push(chatId);
+        dirty = true;
+      } catch (err) {}
+    }
+  }
+
+  if (dirty) saveSentLog(sentLog);
+}
+
 // --- Scheduled tasks (per-user notification times) ---
 
 function scheduledTasks() {
@@ -350,6 +401,7 @@ function doPost(e) {
   // WSL meal data upload
   if (body.action === 'update_meal') {
     saveMeal(body.data);
+    catchUpSend();
     return ContentService.createTextOutput(JSON.stringify({ ok: true, users: getUsers().length }));
   }
 
