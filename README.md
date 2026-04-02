@@ -119,6 +119,8 @@ SHELL=/bin/bash
 
 **봇이 응답 안 함** — Apps Script 트리거 탭에서 `tick`이 1분 간격 등록 확인. 없으면 `setup` 재실행.
 
+**Apps Script HTTP / JSON 에러** — 웹 앱 URL이 최신 배포 URL인지 확인하고, Apps Script 수정 후에는 반드시 "새 버전"으로 다시 배포. 크롤러는 이제 비정상 응답을 바로 실패로 처리한다.
+
 **Not yet updated** — WSL에서 크롤링 스크립트 실행: `LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs`
 
 ## 새 컴퓨터에 설치하기
