@@ -94,7 +94,10 @@ function validateMealData(data) {
 // --- Crawl ---
 
 async function crawlMeal() {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--disable-setuid-sandbox", "--no-sandbox"],
+  });
   const page = await browser.newPage();
 
   try {
