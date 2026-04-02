@@ -5,12 +5,12 @@
  * Apps Script가 텔레그램 봇 응답 및 스케줄 전송을 담당.
  *
  * 사용법:
- *   LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs
- *   LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal/kribb-meal-bot.mjs --force
+ *   LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs
+ *   LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs --force
  *
  * cron (평일 08:25 + 랜덤 0~600초 딜레이 + 재부팅):
- *   25 8 * * 1-5 sleep $((RANDOM % 600)) && cd /mnt/d/_workspace/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
- *   @reboot sleep 15 && cd /mnt/d/_workspace/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
+ *   25 8 * * 1-5 sleep $((RANDOM % 600)) && cd /mnt/d/_workspace/030.repos/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
+ *   @reboot sleep 15 && cd /mnt/d/_workspace/030.repos/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
  *
  * 환경변수 (.env):
  *   KRIBB_ID, KRIBB_PW, APPS_SCRIPT_URL
@@ -22,7 +22,7 @@ import { readFileSync } from 'fs';
 
 function loadEnv() {
   try {
-    const envPath = '/mnt/d/_workspace/kribb-meal/.env';
+    const envPath = new URL('.env', import.meta.url).pathname;
     for (const line of readFileSync(envPath, 'utf8').split('\n')) {
       const m = line.match(/^\s*([\w]+)\s*=\s*"?([^"]*)"?\s*$/);
       if (m) process.env[m[1]] = m[2];
@@ -31,46 +31,10 @@ function loadEnv() {
 }
 loadEnv();
 
-const { KRIBB_ID, KRIBB_PW, APPS_SCRIPT_URL, GEMINI_API_KEY } = process.env;
+const { KRIBB_ID, KRIBB_PW, APPS_SCRIPT_URL } = process.env;
 if (!KRIBB_ID || !KRIBB_PW || !APPS_SCRIPT_URL) {
   console.error('Error: .env에 KRIBB_ID, KRIBB_PW, APPS_SCRIPT_URL 필요');
   process.exit(1);
-}
-
-// --- Gemini AI Insight ---
-
-async function getAiInsight(data) {
-  if (!GEMINI_API_KEY) {
-    console.warn('GEMINI_API_KEY is missing in process.env');
-    return "";
-  }
-  console.log('Using GEMINI_API_KEY starting with:', GEMINI_API_KEY.substring(0, 4));
-  try {
-    const prompt = `너는 한국생명공학연구원(KRIBB)의 위트 있는 인공지능 영양사야. 
-오늘의 점심 메뉴는 [${data.lunchA}]이고, 저녁 메뉴는 [${data.dinner}]이야.
-연구원들이 힘내서 실험할 수 있도록, 메뉴와 관련된 과학 유머나 비유(DNA, PCR, 단백질, 세포 등)를 섞어서 짧고 강렬한 한 문장의 응원 멘트를 한국어로 작성해줘. 
-너무 길지 않게 딱 한 문장만!`;
-
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }]
-      })
-    });
-    
-    const json = await res.json();
-    if (json.error) {
-      console.error('Gemini API Error Response:', JSON.stringify(json.error));
-      return "";
-    }
-    
-    const insight = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
-    return insight;
-  } catch (err) {
-    console.error('Gemini Fetch Error:', err.message);
-    return "";
-  }
 }
 
 // --- Crawl ---
@@ -170,13 +134,6 @@ if (!force) {
 try {
   const data = await crawlMeal();
   console.log(`[${ts()}] ${data.date} crawled`);
-  
-  // Gemini AI 인사이트 생성
-  const insight = await getAiInsight(data);
-  if (insight) {
-    data.insight = insight;
-    console.log(`[${ts()}] AI Insight: ${insight}`);
-  }
 
   const res = await uploadToAppsScript(data);
   console.log('Apps Script:', res);

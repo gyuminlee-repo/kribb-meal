@@ -53,7 +53,7 @@ APPS_SCRIPT_URL=나중에채움
 ### 4. WSL 의존성 설치
 
 ```bash
-cd /mnt/d/_workspace/kribb-meal
+cd /mnt/d/_workspace/030.repos/kribb-meal
 npm install
 npx playwright install chromium
 ```
@@ -63,7 +63,7 @@ npx playwright install chromium
 ### 5. 테스트
 
 ```bash
-cd /mnt/d/_workspace/kribb-meal
+cd /mnt/d/_workspace/030.repos/kribb-meal
 
 # 크롤링 + 데이터 업로드
 LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs
@@ -80,7 +80,7 @@ crontab -e
 
 ```
 SHELL=/bin/bash
-25 8 * * 1-5 sleep $((RANDOM % 600)) && cd /mnt/d/_workspace/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
+25 8 * * 1-5 sleep $((RANDOM % 600)) && cd /mnt/d/_workspace/030.repos/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
 ```
 
 ## 텔레그램 명령어
@@ -164,8 +164,8 @@ SHELL=/bin/bash
    ```
    ```
    SHELL=/bin/bash
-   25 8 * * 1-5 sleep $((RANDOM % 600)) && cd /mnt/d/_workspace/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
-   @reboot sleep 15 && cd /mnt/d/_workspace/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
+   25 8 * * 1-5 sleep $((RANDOM % 600)) && cd /mnt/d/_workspace/030.repos/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
+   @reboot sleep 15 && cd /mnt/d/_workspace/030.repos/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
    ```
 
 7. **확인**: 텔레그램에서 `/meal` 입력 → 식단 표시되면 완료
