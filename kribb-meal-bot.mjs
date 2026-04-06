@@ -176,10 +176,10 @@ async function checkMeal() {
   } catch {
     throw new Error(`Invalid JSON from Apps Script: ${text.slice(0, 200)}`);
   }
-  if (typeof json.updated !== "boolean") {
+  if (!("updated" in json)) {
     throw new Error("Apps Script check_meal response missing updated flag");
   }
-  return json.updated === true;
+  return !!json.updated;
 }
 
 // --- Main ---
