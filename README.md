@@ -33,6 +33,13 @@ cron 08:25 → 크롤링 → POST →   저장
 KRIBB_ID=인트라넷아이디
 KRIBB_PW=인트라넷비밀번호
 APPS_SCRIPT_URL=나중에채움
+SHARED_SECRET=랜덤문자열(아래참조)
+```
+
+`SHARED_SECRET`은 크롤러↔GAS 간 인증에 사용한다. 아래 명령으로 생성:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 ### 3. Google Apps Script 배포
@@ -40,11 +47,13 @@ APPS_SCRIPT_URL=나중에채움
 1. [script.google.com](https://script.google.com) → 새 프로젝트
 2. GitHub `apps-script-code.js` → Raw → 전체 복사 → 붙여넣기
 3. 1번째 줄 `'YOUR_BOT_TOKEN'`을 봇 토큰으로 교체
-4. Ctrl+S 저장
-5. 배포 → 새 배포 → 웹 앱 → 모든 사용자 → 배포
-6. 웹 앱 URL → `.env`의 `APPS_SCRIPT_URL`에 입력
-7. 함수 드롭다운 → **`setup`** → 실행 → `Setup complete` 확인
-8. 브라우저에서 웹훅 설정:
+4. 왼쪽 톱니바퀴(프로젝트 설정) → **스크립트 속성** → 속성 추가
+   - `SHARED_SECRET` = `.env`의 `SHARED_SECRET`과 동일한 값
+5. Ctrl+S 저장
+6. 배포 → 새 배포 → 웹 앱 → 모든 사용자 → 배포
+7. 웹 앱 URL → `.env`의 `APPS_SCRIPT_URL`에 입력
+8. 함수 드롭다운 → **`setup`** → 실행 → `Setup complete` 확인
+9. 브라우저에서 웹훅 설정:
    ```
    https://api.telegram.org/bot봇토큰/setWebhook?url=웹앱URL
    ```
@@ -151,6 +160,7 @@ SHELL=/bin/bash
    KRIBB_ID=인트라넷아이디
    KRIBB_PW=인트라넷비밀번호
    APPS_SCRIPT_URL=기존배포된웹앱URL
+   SHARED_SECRET=기존GAS스크립트속성의SHARED_SECRET값
    EOF
    ```
 
