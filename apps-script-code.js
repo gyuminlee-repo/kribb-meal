@@ -93,6 +93,7 @@ function clearMeal() { PROPS.deleteProperty('meal'); }
 // --- Migration: users array → userPrefs ---
 
 function migrateIfNeeded() {
+  if (PROPS.getProperty('migrated') === 'v1') return;
   var prefs = getUserPrefs();
   var users = getUsers();
   var changed = false;
@@ -103,18 +104,27 @@ function migrateIfNeeded() {
     }
   }
   if (changed) PROPS.setProperty('userPrefs', JSON.stringify(prefs));
+  PROPS.setProperty('migrated', 'v1');
 }
 
 // --- Time helpers ---
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
-function todayStr() {
-  var t = new Date();
-  return t.getFullYear() + '/' + pad(t.getMonth() + 1) + '/' + pad(t.getDate());
+// UTC+9 고정 오프셋으로 KST 시각 반환 (GAS 프로젝트 타임존 설정 독립)
+function kstDate() {
+  return new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
 }
 
-function now() { var t = new Date(); return { h: t.getHours(), m: t.getMinutes(), day: t.getDay() }; }
+function todayStr() {
+  var t = kstDate();
+  return t.getUTCFullYear() + '/' + pad(t.getUTCMonth() + 1) + '/' + pad(t.getUTCDate());
+}
+
+function now() {
+  var t = kstDate();
+  return { h: t.getUTCHours(), m: t.getUTCMinutes(), day: t.getUTCDay() };
+}
 
 function isUpdated(data) {
   return data && data.date === todayStr() && (data.lunchA || data.dinner);
@@ -390,7 +400,12 @@ function pollMessages() {
 
 // Webhook + WSL data receiver
 function doPost(e) {
-  var body = JSON.parse(e.postData.contents);
+  var body;
+  try {
+    body = JSON.parse(e.postData.contents);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Invalid JSON' }));
+  }
 
   // Check if meal data exists for today
   if (body.action === 'check_meal') {
@@ -400,8 +415,14 @@ function doPost(e) {
 
   // WSL meal data upload
   if (body.action === 'update_meal') {
-    saveMeal(body.data);
-    catchUpSend();
+    var lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(5000);
+      saveMeal(body.data);
+      catchUpSend();
+    } finally {
+      lock.releaseLock();
+    }
     return ContentService.createTextOutput(JSON.stringify({ ok: true, users: getUsers().length }));
   }
 
@@ -416,9 +437,18 @@ function doPost(e) {
 
 // 1-min trigger: migration + scheduled sends + cleanup + polling backup
 function tick() {
-  migrateIfNeeded();
-  scheduledTasks();
-  pollMessages();
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(5000);
+    migrateIfNeeded();
+    scheduledTasks();
+    catchUpSend();
+    pollMessages();
+  } catch (err) {
+    Logger.log('tick lock timeout: ' + err);
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // Run once after deploy: registers trigger + removes old webhook
