@@ -12,10 +12,10 @@ var BOT_TOKEN = 'YOUR_BOT_TOKEN';
 var TG_API = 'https://api.telegram.org/bot' + BOT_TOKEN;
 var PROPS = PropertiesService.getScriptProperties();
 
-var DEFAULT_LUNCH = '11:00';
-var DEFAULT_DINNER = '17:30';
+var DEFAULT_LUNCH = '09:30';
+var DEFAULT_DINNER = '';     // 저녁 알림 미사용 — 09:30 단일 알림으로 통합
 
-var LUNCH_START_H = 11, LUNCH_START_M = 30;   // 11:30
+var LUNCH_START_H = 11, LUNCH_START_M = 30;   // 11:30 (catch-up 상한선)
 var DINNER_START_H = 18, DINNER_START_M = 0;   // 18:00
 
 // --- Telegram API ---
@@ -93,18 +93,40 @@ function clearMeal() { PROPS.deleteProperty('meal'); }
 // --- Migration: users array → userPrefs ---
 
 function migrateIfNeeded() {
-  if (PROPS.getProperty('migrated') === 'v1') return;
-  var prefs = getUserPrefs();
-  var users = getUsers();
-  var changed = false;
-  for (var i = 0; i < users.length; i++) {
-    if (!prefs[users[i]]) {
-      prefs[users[i]] = { lunch: DEFAULT_LUNCH, dinner: DEFAULT_DINNER, muted: false };
-      changed = true;
+  var version = PROPS.getProperty('migrated');
+
+  // v1: users 배열 → userPrefs 객체
+  if (version !== 'v1' && version !== 'v2') {
+    var prefs = getUserPrefs();
+    var users = getUsers();
+    var changed = false;
+    for (var i = 0; i < users.length; i++) {
+      if (!prefs[users[i]]) {
+        prefs[users[i]] = { lunch: DEFAULT_LUNCH, dinner: DEFAULT_DINNER, muted: false };
+        changed = true;
+      }
     }
+    if (changed) PROPS.setProperty('userPrefs', JSON.stringify(prefs));
+    version = 'v1';
   }
-  if (changed) PROPS.setProperty('userPrefs', JSON.stringify(prefs));
-  PROPS.setProperty('migrated', 'v1');
+
+  // v2: 09:30 단일 알림으로 통합 — 기존 lunch→09:30, dinner→'' 업데이트
+  if (version !== 'v2') {
+    var prefs2 = getUserPrefs();
+    var changed2 = false;
+    for (var chatId in prefs2) {
+      if (prefs2[chatId].lunch !== DEFAULT_LUNCH) {
+        prefs2[chatId].lunch = DEFAULT_LUNCH;
+        changed2 = true;
+      }
+      if (prefs2[chatId].dinner !== DEFAULT_DINNER) {
+        prefs2[chatId].dinner = DEFAULT_DINNER;
+        changed2 = true;
+      }
+    }
+    if (changed2) PROPS.setProperty('userPrefs', JSON.stringify(prefs2));
+    PROPS.setProperty('migrated', 'v2');
+  }
 }
 
 // --- Time helpers ---
@@ -309,7 +331,7 @@ function catchUpSend() {
         && (t.h < LUNCH_START_H || (t.h === LUNCH_START_H && t.m < LUNCH_START_M))
         && sentLog.lunch.indexOf(chatId) === -1) {
       try {
-        tgSend(chatId, msgLunch(data));
+        tgSend(chatId, msgAll(data));
         sentLog.lunch.push(chatId);
         dirty = true;
       } catch (err) {}
@@ -365,7 +387,7 @@ function scheduledTasks() {
     // Lunch
     if (p.lunch === timeStr && data.lunchA && sentLog.lunch.indexOf(chatId) === -1) {
       try {
-        tgSend(chatId, msgLunch(data));
+        tgSend(chatId, msgAll(data));
         sentLog.lunch.push(chatId);
         dirty = true;
       } catch (err) {}
