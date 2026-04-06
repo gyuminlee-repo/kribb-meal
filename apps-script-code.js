@@ -407,6 +407,14 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Invalid JSON' }));
   }
 
+  // Crawler actions require shared secret
+  if (body.action === 'check_meal' || body.action === 'update_meal') {
+    var secret = PROPS.getProperty('SHARED_SECRET');
+    if (!secret || body.secret !== secret) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Unauthorized' }));
+    }
+  }
+
   // Check if meal data exists for today
   if (body.action === 'check_meal') {
     var data = getMeal();

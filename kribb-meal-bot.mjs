@@ -52,9 +52,13 @@ function loadEnv() {
 }
 loadEnv();
 
-const { KRIBB_ID, KRIBB_PW, APPS_SCRIPT_URL } = process.env;
+const { KRIBB_ID, KRIBB_PW, APPS_SCRIPT_URL, SHARED_SECRET } = process.env;
 if (!KRIBB_ID || !KRIBB_PW || !APPS_SCRIPT_URL) {
   console.error('Error: .env에 KRIBB_ID, KRIBB_PW, APPS_SCRIPT_URL 필요');
+  process.exit(1);
+}
+if (!SHARED_SECRET) {
+  console.error('Error: .env에 SHARED_SECRET 필요');
   process.exit(1);
 }
 
@@ -147,7 +151,7 @@ async function postAppsScript(payload) {
   const res = await fetch(APPS_SCRIPT_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, secret: SHARED_SECRET }),
   });
   const text = await res.text();
 
