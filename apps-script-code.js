@@ -430,7 +430,7 @@ function doPost(e) {
   }
 
   // Crawler actions require shared secret
-  if (body.action === 'check_meal' || body.action === 'update_meal') {
+  if (body.action === 'check_meal' || body.action === 'update_meal' || body.action === 'force_broadcast') {
     var secret = PROPS.getProperty('SHARED_SECRET');
     if (!secret || body.secret !== secret) {
       return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Unauthorized' }));
@@ -441,6 +441,21 @@ function doPost(e) {
   if (body.action === 'check_meal') {
     var data = getMeal();
     return ContentService.createTextOutput(JSON.stringify({ ok: true, updated: isUpdated(data) }));
+  }
+
+  // Force broadcast: unconditional send to all users (test/admin)
+  if (body.action === 'force_broadcast') {
+    var data = getMeal();
+    if (!isUpdated(data)) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'No meal data' }));
+    }
+    var users = getUsers();
+    var prefix = body.prefix ? body.prefix + '\n\n' : '';
+    var sent = 0;
+    for (var i = 0; i < users.length; i++) {
+      try { tgSend(users[i], prefix + msgAll(data)); sent++; } catch (err) {}
+    }
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, sent: sent, total: users.length }));
   }
 
   // WSL meal data upload
