@@ -15,7 +15,8 @@
  * 환경변수 (.env):
  *   KRIBB_ID, KRIBB_PW, APPS_SCRIPT_URL
  */
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { execSync } from "child_process";
 import { chromium } from "playwright";
 
 // --- Config ---
@@ -186,8 +187,6 @@ async function checkMeal() {
   return !!json.updated;
 }
 
-// --- Main ---
-
 const force = process.argv.includes('--force');
 const ts = () => new Date().toISOString();
 
@@ -199,7 +198,7 @@ if ((day === 0 || day === 6) && !force) {
 }
 
 // Duplicate check
-if (!force) {
+if (!force && process.env.SKIP_APPS_SCRIPT !== '1') {
   try {
     const updated = await checkMeal();
     if (updated) {
@@ -212,12 +211,65 @@ if (!force) {
   }
 }
 
+// --- Save as Markdown ---
+
+const WEEKDAY_KR = ["일", "월", "화", "수", "목", "금", "토"];
+
+function saveMealMarkdown(data) {
+  const [y, m, d] = data.date.split("/");
+  const dow = WEEKDAY_KR[new Date(+y, +m - 1, +d).getDay()];
+
+  let md = `# ${data.date} (${dow})\n`;
+  if (data.breakfast) md += `\n## 조식\n${data.breakfast}\n`;
+  if (data.lunchA) md += `\n## 중식\n${data.lunchA}\n`;
+  if (data.dinner) md += `\n## 석식\n${data.dinner}\n`;
+
+  const dir = new URL("meals", import.meta.url).pathname;
+  mkdirSync(dir, { recursive: true });
+
+  const filePath = new URL(`meals/${data.date.replace(/\//g, "-")}.md`, import.meta.url).pathname;
+  writeFileSync(filePath, md, "utf8");
+  console.log(`[${ts()}] Saved ${filePath}`);
+  return filePath;
+}
+
+function gitPushMeals() {
+  const repoDir = new URL(".", import.meta.url).pathname;
+  execSync("git add meals/", { cwd: repoDir, stdio: "pipe" });
+
+  const hasChanges = (() => {
+    try {
+      execSync("git diff --cached --quiet", { cwd: repoDir, stdio: "pipe" });
+      return false; // exit 0 = no changes
+    } catch {
+      return true;  // exit 1 = changes staged
+    }
+  })();
+
+  if (!hasChanges) return;
+
+  execSync('git commit -m "meal: update"', { cwd: repoDir, stdio: "pipe" });
+  execSync("git push origin main", { cwd: repoDir, stdio: "pipe" });
+  console.log(`[${ts()}] Pushed to origin`);
+}
+
 try {
   const data = await crawlMeal();
   console.log(`[${ts()}] ${data.date} crawled`);
 
-  const res = await uploadToAppsScript(data);
-  console.log('Apps Script:', res);
+  try {
+    saveMealMarkdown(data);
+    gitPushMeals();
+  } catch (mdErr) {
+    console.warn(`[${ts()}] md save/push failed (non-fatal):`, mdErr.message);
+  }
+
+  if (process.env.SKIP_APPS_SCRIPT === '1') {
+    console.log(`[${ts()}] SKIP_APPS_SCRIPT=1 — Apps Script upload skipped`);
+  } else {
+    const res = await uploadToAppsScript(data);
+    console.log('Apps Script:', res);
+  }
 } catch (err) {
   console.error(`[${ts()}] Error:`, err.message);
   process.exit(1);
