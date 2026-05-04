@@ -124,7 +124,11 @@ async function crawlMeal() {
     }
 
     const meal = await page.evaluate(() => {
-      const result = { date: "", breakfast: "", lunchA: "", dinner: "" };
+      const result = { date: "", breakfast: "", lunchA: "", dinner: "", noData: false };
+      if (document.body.innerText.includes("오늘의 식단이 없거나")) {
+        result.noData = true;
+        return result;
+      }
       for (const row of document.querySelectorAll("table tr")) {
         const cells = row.querySelectorAll("td");
         if (cells.length < 4) continue;
@@ -139,6 +143,11 @@ async function crawlMeal() {
       }
       return result;
     });
+    if (meal.noData) {
+      const e = new Error("No meal posted on source site");
+      e.noData = true;
+      throw e;
+    }
 
     return validateMealData(meal);
   } finally {
@@ -271,6 +280,10 @@ try {
     console.log('Apps Script:', res);
   }
 } catch (err) {
+  if (err.noData) {
+    console.log(`[${ts()}] ${err.message} — skip`);
+    process.exit(0);
+  }
   console.error(`[${ts()}] Error:`, err.message);
   process.exit(1);
 }
