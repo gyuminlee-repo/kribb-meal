@@ -1,0 +1,67 @@
+# Enforce consistent line endings across platforms (WSL2/Windows/macOS)
+* text=auto eol=lf
+
+# Source code: LF
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.py text eol=lf
+*.rs text eol=lf
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Config: LF
+*.toml text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+.gitignore text eol=lf
+.npmrc text eol=lf
+.editorconfig text eol=lf
+
+# Bioinformatics text formats: LF
+*.fa text eol=lf
+*.fasta text eol=lf
+*.fastq text eol=lf
+*.gb text eol=lf
+*.gff text eol=lf
+*.bed text eol=lf
+
+# CSV: preserve CRLF (Excel/Windows tool compat for fixtures)
+*.csv text eol=crlf
+
+# Lock files: LF (committed, reproducibility)
+Cargo.lock text eol=lf
+pnpm-lock.yaml text eol=lf
+package-lock.json text eol=lf
+yarn.lock text eol=lf
+poetry.lock text eol=lf
+uv.lock text eol=lf
+
+# Binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.wasm binary
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
