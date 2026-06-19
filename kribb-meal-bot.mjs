@@ -14,6 +14,8 @@
  *
  * 환경변수 (.env):
  *   KRIBB_ID, KRIBB_PW, APPS_SCRIPT_URL
+ *   SHARED_SECRET
+ *   WORKER_INGEST_URL  (optional) Cloudflare Worker /ingest URL. If unset, Worker push is skipped.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { execSync } from "child_process";
@@ -180,6 +182,24 @@ async function uploadToAppsScript(data) {
   return text;
 }
 
+// --- Cloudflare Worker upload (non-fatal, optional) ---
+
+async function uploadToWorker(data) {
+  const workerUrl = process.env.WORKER_INGEST_URL;
+  if (!workerUrl) return;
+  try {
+    const res = await fetch(workerUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ secret: SHARED_SECRET, data }),
+    });
+    const text = await res.text();
+    console.log(`[${ts()}] Worker ingest: ${res.status} ${text.slice(0, 100)}`);
+  } catch (err) {
+    console.warn(`[${ts()}] Worker ingest failed (non-fatal):`, err.message);
+  }
+}
+
 // --- Check if already updated ---
 
 async function checkMeal() {
@@ -279,6 +299,7 @@ try {
     const res = await uploadToAppsScript(data);
     console.log('Apps Script:', res);
   }
+  await uploadToWorker(data);
 } catch (err) {
   if (err.noData) {
     console.log(`[${ts()}] ${err.message} — skip`);

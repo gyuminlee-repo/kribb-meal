@@ -1,0 +1,17 @@
+name = "kribb-meal-kakao"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# KV namespace binding for meal storage
+# Steps to create:
+#   1. Run: wrangler kv namespace create MEAL
+#   2. Copy the "id" from the output
+#   3. Paste it below (replace <KV_NAMESPACE_ID>)
+[[kv_namespaces]]
+binding = "MEAL"
+id = "<KV_NAMESPACE_ID>"
+
+# INGEST_SECRET is a secret - do NOT put the value here.
+# Set it with:
+#   wrangler secret put INGEST_SECRET
+# Use the same value as SHARED_SECRET in your crawler .env
