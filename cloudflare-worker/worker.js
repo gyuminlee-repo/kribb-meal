@@ -81,6 +81,9 @@ function formatMealText(data) {
     lines.push(data.insight);
   }
 
+  lines.push("");
+  lines.push("문의: 이규민 | sysbiogyumin@kribb.re.kr");
+
   return lines.join("\n");
 }
 

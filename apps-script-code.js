@@ -163,6 +163,8 @@ function parseTime(str) {
 
 // --- Message formatting ---
 
+var CONTACT_FOOTER = '\n\n문의: 이규민 | sysbiogyumin@kribb.re.kr';
+
 function msgNotReady() {
   var h = now().h;
   if (h < 8) return 'KRIBB meal (' + todayStr() + ')\n\nNot yet updated.\nAuto-send: lunch 11:00 / dinner 17:30';
@@ -178,7 +180,7 @@ function msgLunch(data) {
   if (!isUpdated(data) || !data.lunchA) return msgNotReady();
   var msg = '<b>Lunch</b> (11:30-13:00)\n\n' + escHtml(data.lunchA);
   if (data.insight) msg += '\n\n✨ <b>AI Insight</b>\n' + escHtml(data.insight);
-  return msg;
+  return msg + CONTACT_FOOTER;
 }
 
 function msgDinner(data) {
@@ -186,7 +188,7 @@ function msgDinner(data) {
   if (!isUpdated(data) || !data.dinner) return msgNotReady();
   var msg = '<b>Dinner</b> (18:00-19:00)\n\n' + escHtml(data.dinner);
   if (data.insight) msg += '\n\n✨ <b>AI Insight</b>\n' + escHtml(data.insight);
-  return msg;
+  return msg + CONTACT_FOOTER;
 }
 
 function msgAll(data) {
@@ -195,7 +197,7 @@ function msgAll(data) {
   var msg = '<b>KRIBB meal</b> (' + data.date + ')\n';
   if (data.lunchA) msg += '\n<b>Lunch</b> (11:30-13:00)\n' + escHtml(data.lunchA) + '\n';
   if (data.dinner) msg += '\n<b>Dinner</b> (18:00-19:00)\n' + escHtml(data.dinner) + '\n';
-  return msg;
+  return msg + CONTACT_FOOTER;
 }
 
 function msgTest(data) {
