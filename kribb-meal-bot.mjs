@@ -8,6 +8,9 @@
  *   LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs
  *   LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs --force
  *
+ * 휴가 스킵: HOLIDAY_RANGES(KST 기준)에 오늘이 포함되면 크롤링 없이 즉시 종료한다.
+ * IGNORE_HOLIDAY=1 을 주면 스킵을 무시한다 (--force 로는 무시되지 않음).
+ *
  * cron (평일 08:25 + 랜덤 0~600초 딜레이 + 재부팅):
  *   25 8 * * 1-5 sleep $((RANDOM % 600)) && cd /mnt/d/_workspace/030.repos/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
  *   @reboot sleep 15 && cd /mnt/d/_workspace/030.repos/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
@@ -63,6 +66,20 @@ if (!KRIBB_ID || !KRIBB_PW || !APPS_SCRIPT_URL) {
 if (!SHARED_SECRET) {
   console.error('Error: .env에 SHARED_SECRET 필요');
   process.exit(1);
+}
+
+// --- Holiday (식당 미운영 기간, KST 기준, 'YYYY-MM-DD', 양끝 포함) ---
+
+const HOLIDAY_RANGES = [{ start: "2026-07-27", end: "2026-07-31", label: "집중휴가기간" }];
+
+// 서버 타임존이 UTC일 수 있으므로 +9h 오프셋으로 KST 날짜를 구한다.
+function kstTodayISO() {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function findHoliday() {
+  const today = kstTodayISO();
+  return HOLIDAY_RANGES.find((r) => today >= r.start && today <= r.end) || null;
 }
 
 function normalizeMealText(value) {
@@ -223,6 +240,13 @@ const ts = () => new Date().toISOString();
 const day = new Date().getDay();
 if ((day === 0 || day === 6) && !force) {
   console.log(`[${ts()}] Weekend — skip`);
+  process.exit(0);
+}
+
+// Holiday skip (--force 로는 무시되지 않음. IGNORE_HOLIDAY=1 만 무시)
+const holiday = findHoliday();
+if (holiday && process.env.IGNORE_HOLIDAY !== '1') {
+  console.log(`[${ts()}] ${holiday.label} (${holiday.start}~${holiday.end}) - skip`);
   process.exit(0);
 }
 
