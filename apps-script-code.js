@@ -20,7 +20,7 @@ var DINNER_START_H = 18, DINNER_START_M = 0;   // 18:00
 
 // 식당 미운영 기간 (KST 기준, 'YYYY/MM/DD', 양끝 포함)
 var HOLIDAY_RANGES = [
-  { start: '2026/07/27', end: '2026/07/31', label: '집중휴가기간', display: '7/27~7/31', resume: '8/3(월)' }
+  { start: '2026/07/27', end: '2026/07/29', label: '집중휴가기간', display: '7/27~7/29', resume: '7/30(목)' }
 ];
 
 // --- Telegram API ---

@@ -70,7 +70,7 @@ if (!SHARED_SECRET) {
 
 // --- Holiday (식당 미운영 기간, KST 기준, 'YYYY-MM-DD', 양끝 포함) ---
 
-const HOLIDAY_RANGES = [{ start: "2026-07-27", end: "2026-07-31", label: "집중휴가기간" }];
+const HOLIDAY_RANGES = [{ start: "2026-07-27", end: "2026-07-29", label: "집중휴가기간" }];
 
 // 서버 타임존이 UTC일 수 있으므로 +9h 오프셋으로 KST 날짜를 구한다.
 function kstTodayISO() {
