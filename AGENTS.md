@@ -1,8 +1,4 @@
-<!-- AUTO-GENERATED from CLAUDE.md by claude2codex.sh on 2026-04-30 -->
-<!-- Source: /mnt/d/_workspace/cc/kribb-meal/.claude/CLAUDE.md -->
-<!-- 편집은 CLAUDE.md를 수정하고 스크립트를 재실행. 직접 편집 금지. -->
-
-# KRIBB Meal Bot
+# AGENTS.md — KRIBB Meal Bot
 
 ## Project
 - KRIBB 구내식당 식단 크롤러 + 텔레그램 봇
@@ -21,3 +17,4 @@
 
 ## Language
 - Always respond in Korean
+
