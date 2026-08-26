@@ -175,7 +175,35 @@ function msgClosed() {
   return 'KRIBB meal (' + todayStr() + ')\n\nDone for today.\nNext update tomorrow.';
 }
 
+// --- Holiday notice (script property: holiday) ---
+// {"from":"2026/07/27","to":"2026/07/31","msg":"..."} , from/to inclusive, KST
+// 속성을 지우거나 기간이 지나면 자동으로 평상시 동작으로 복귀.
+
+function getHoliday() {
+  var raw = PROPS.getProperty('holiday');
+  if (!raw) return null;
+  var h;
+  try { h = JSON.parse(raw); } catch (err) { return null; }
+  if (!h || !h.from || !h.to) return null;
+  return h;
+}
+
+// YYYY/MM/DD 제로패딩이라 사전순 비교 = 시간순 비교
+function isHoliday() {
+  var h = getHoliday();
+  if (!h) return false;
+  var today = todayStr();
+  return h.from <= today && today <= h.to;
+}
+
+function msgHoliday() {
+  var h = getHoliday();
+  var body = (h && h.msg) ? h.msg : '집중휴가기간이라 이번 주 식단 운영이 없습니다.';
+  return '<b>KRIBB meal</b> (' + todayStr() + ')\n\n' + escHtml(body) + CONTACT_FOOTER;
+}
+
 function msgLunch(data) {
+  if (isHoliday()) return msgHoliday();
   if (now().h >= 19) return msgClosed();
   if (!isUpdated(data) || !data.lunchA) return msgNotReady();
   var msg = '<b>Lunch</b> (11:30-13:00)\n\n' + escHtml(data.lunchA);
@@ -184,6 +212,7 @@ function msgLunch(data) {
 }
 
 function msgDinner(data) {
+  if (isHoliday()) return msgHoliday();
   if (now().h >= 19) return msgClosed();
   if (!isUpdated(data) || !data.dinner) return msgNotReady();
   var msg = '<b>Dinner</b> (18:00-19:00)\n\n' + escHtml(data.dinner);
@@ -192,6 +221,7 @@ function msgDinner(data) {
 }
 
 function msgAll(data) {
+  if (isHoliday()) return msgHoliday();
   if (now().h >= 19) return msgClosed();
   if (!isUpdated(data)) return msgNotReady();
   var msg = '<b>KRIBB meal</b> (' + data.date + ')\n';
@@ -201,6 +231,7 @@ function msgAll(data) {
 }
 
 function msgTest(data) {
+  if (isHoliday()) return '[PREVIEW]\n' + msgHoliday();
   if (!isUpdated(data)) return msgNotReady();
   return '[PREVIEW]\n' + msgAll(data);
 }
