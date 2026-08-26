@@ -23,6 +23,11 @@ const DINNER_END_H = 19;   // 19:00 = "closed for today"
 const MEAL_KV_KEY = "meal:today";
 const MEAL_KV_TTL = 86400; // 24 hours
 
+// 식당 미운영 기간 (KST 기준, 'YYYY/MM/DD', 양끝 포함)
+const HOLIDAY_RANGES = [
+  { start: "2026/07/27", end: "2026/07/29", label: "집중휴가기간", display: "7/27~7/29", resume: "7/30(목)" },
+];
+
 // --- KST helpers ---
 
 function kstNow() {
@@ -41,6 +46,12 @@ function kstHour() {
   return kstNow().getUTCHours();
 }
 
+// 'YYYY/MM/DD' 고정폭 문자열이라 사전순 비교가 날짜 비교와 일치한다.
+function findHoliday() {
+  const today = kstTodayStr();
+  return HOLIDAY_RANGES.find((r) => today >= r.start && today <= r.end) || null;
+}
+
 // --- Meal data validity check ---
 
 function isUpdated(data) {
@@ -50,6 +61,18 @@ function isUpdated(data) {
 // --- Plain text formatter (no HTML tags) ---
 
 function formatMealText(data) {
+  const hol = findHoliday();
+  if (hol) {
+    return [
+      "KRIBB 식단 안내",
+      "",
+      `${hol.label}(${hol.display})으로 구내식당 식단 운영이 없습니다.`,
+      `${hol.resume}부터 평소대로 안내합니다.`,
+      "",
+      "문의: 이규민 | sysbiogyumin@kribb.re.kr",
+    ].join("\n");
+  }
+
   const h = kstHour();
 
   if (h >= DINNER_END_H) {

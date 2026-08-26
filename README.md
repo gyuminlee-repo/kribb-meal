@@ -120,6 +120,34 @@ SHELL=/bin/bash
 
 **Catch-up 알림**: 크롤링이 사용자 알림 시간 이후에 완료된 경우, 식사 시작 시간(점심 11:30, 저녁 18:00) 이전이면 데이터 도착 즉시 알림을 전송한다. 식사 시작 시간 이후에는 전송하지 않는다.
 
+## 휴가·미운영 기간 설정
+
+집중휴가처럼 구내식당 식단 운영이 없는 기간에는 `HOLIDAY_RANGES` 목록에 기간을 등록한다. 등록하면 사용자 명령에는 "운영 없음" 안내가 나가고, 자동 알림(브로드캐스트)과 크롤링은 한 건도 실행되지 않는다.
+
+**세 파일을 함께 고쳐야 한다.** 한 곳만 고치면 나머지 경로가 평소대로 동작한다.
+
+| 파일 | 날짜 형식 | 필드 |
+|------|----------|------|
+| `apps-script-code.js` | `YYYY/MM/DD` | start, end, label, display, resume |
+| `cloudflare-worker/worker.js` | `YYYY/MM/DD` | start, end, label, display, resume |
+| `kribb-meal-bot.mjs` | `YYYY-MM-DD` | start, end, label |
+
+크롤러만 하이픈(`-`) 형식이다. 슬래시 형식을 붙여넣으면 조건이 영영 맞지 않아 조용히 평소대로 크롤링한다.
+
+기간은 양끝을 포함하며 KST 기준으로 판정한다. 기간이 지나면 자동으로 평상 동작으로 돌아가므로 되돌리는 작업은 필요 없다.
+
+반영 방법:
+
+- **크롤러(서버)**: `git pull` 만 하면 된다. cron 재등록이나 재시작 불필요.
+- **Google Apps Script**: 코드를 붙여넣고 저장한 뒤 **배포 관리 → 연필 아이콘 → 버전 "새 버전" → 배포**. `setup` 은 재실행하지 말 것 (웹훅이 삭제된다).
+- **Cloudflare Worker**: 카카오 채널을 쓰는 경우에만 `wrangler deploy`. 텔레그램만 쓰면 불필요.
+
+휴가 기간에도 크롤링을 강제로 돌려야 하면 `IGNORE_HOLIDAY=1` 을 붙인다. `--force` 로는 휴가 스킵이 풀리지 않는다.
+
+```bash
+IGNORE_HOLIDAY=1 node kribb-meal-bot.mjs
+```
+
 ## 문제 해결
 
 **libnspr4.so 에러** — `LD_LIBRARY_PATH="/home/gml/miniforge3/lib"` 붙이기
