@@ -18,6 +18,11 @@ var DEFAULT_DINNER = '';     // 저녁 알림 미사용 — 09:30 단일 알림�
 var LUNCH_START_H = 11, LUNCH_START_M = 30;   // 11:30 (catch-up 상한선)
 var DINNER_START_H = 18, DINNER_START_M = 0;   // 18:00
 
+// 식당 미운영 기간 (KST 기준, 'YYYY/MM/DD', 양끝 포함)
+var HOLIDAY_RANGES = [
+  { start: '2026/07/27', end: '2026/07/29', label: '집중휴가기간', display: '7/27~7/29', resume: '7/30(목)' }
+];
+
 // --- Telegram API ---
 
 function tgSend(chatId, text) {
@@ -148,6 +153,17 @@ function now() {
   return { h: t.getUTCHours(), m: t.getUTCMinutes(), day: t.getUTCDay() };
 }
 
+// 오늘이 미운영 기간이면 해당 range 객체, 아니면 null.
+// 'YYYY/MM/DD' 고정폭 문자열이라 사전순 비교가 날짜 비교와 일치한다.
+function findHoliday() {
+  var today = todayStr();
+  for (var i = 0; i < HOLIDAY_RANGES.length; i++) {
+    var r = HOLIDAY_RANGES[i];
+    if (today >= r.start && today <= r.end) return r;
+  }
+  return null;
+}
+
 function isUpdated(data) {
   return data && data.date === todayStr() && (data.lunchA || data.dinner);
 }
@@ -175,7 +191,15 @@ function msgClosed() {
   return 'KRIBB meal (' + todayStr() + ')\n\nDone for today.\nNext update tomorrow.';
 }
 
+function msgHoliday(r) {
+  return '<b>KRIBB meal</b> (' + todayStr() + ')\n\n'
+    + r.label + '(' + r.display + ')으로 구내식당 식단 운영이 없습니다.\n'
+    + r.resume + '부터 평소대로 안내합니다.'
+    + CONTACT_FOOTER;
+}
+
 function msgLunch(data) {
+  var hol = findHoliday(); if (hol) return msgHoliday(hol);
   if (now().h >= 19) return msgClosed();
   if (!isUpdated(data) || !data.lunchA) return msgNotReady();
   var msg = '<b>Lunch</b> (11:30-13:00)\n\n' + escHtml(data.lunchA);
@@ -184,6 +208,7 @@ function msgLunch(data) {
 }
 
 function msgDinner(data) {
+  var hol = findHoliday(); if (hol) return msgHoliday(hol);
   if (now().h >= 19) return msgClosed();
   if (!isUpdated(data) || !data.dinner) return msgNotReady();
   var msg = '<b>Dinner</b> (18:00-19:00)\n\n' + escHtml(data.dinner);
@@ -192,6 +217,7 @@ function msgDinner(data) {
 }
 
 function msgAll(data) {
+  var hol = findHoliday(); if (hol) return msgHoliday(hol);
   if (now().h >= 19) return msgClosed();
   if (!isUpdated(data)) return msgNotReady();
   var msg = '<b>KRIBB meal</b> (' + data.date + ')\n';
@@ -201,6 +227,7 @@ function msgAll(data) {
 }
 
 function msgTest(data) {
+  var hol = findHoliday(); if (hol) return msgHoliday(hol);
   if (!isUpdated(data)) return msgNotReady();
   return '[PREVIEW]\n' + msgAll(data);
 }
@@ -299,6 +326,7 @@ function handleCommand(chatId, text) {
 // --- Broadcast (kept for manual/admin use) ---
 
 function broadcast(msgFn) {
+  if (findHoliday()) return;   // 미운영 기간: 자동 발송 전면 차단
   var data = getMeal();
   if (!isUpdated(data)) return;
   var users = getUsers();
@@ -312,6 +340,7 @@ function broadcast(msgFn) {
 // --- Catch-up: send to users whose alert time already passed (before meal starts) ---
 
 function catchUpSend() {
+  if (findHoliday()) return;   // 미운영 기간: 자동 발송 전면 차단
   var data = getMeal();
   if (!isUpdated(data)) return;
 
@@ -358,6 +387,10 @@ function catchUpSend() {
 // --- Scheduled tasks (per-user notification times) ---
 
 function scheduledTasks() {
+  // 미운영 기간: 함수 맨 앞에서 차단. 휴가 중에는 크롤러가 업로드하지 않아
+  // 잔여 meal 데이터의 date가 stale이므로 isUpdated()가 이미 false이고,
+  // sentLog는 날짜 불일치 시 자동 리셋된다. 19:00 삭제를 건너뛰어도 무해하다.
+  if (findHoliday()) return;
   var t = now();
   var today = todayStr();
 
