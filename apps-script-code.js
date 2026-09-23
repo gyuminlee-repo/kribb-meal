@@ -23,6 +23,10 @@ var HOLIDAY_RANGES = [
   { start: '2026/07/27', end: '2026/07/29', label: '집중휴가기간', display: '7/27~7/29', resume: '7/30(목)' }
 ];
 
+// 식단 미갱신 감시: 평일 이 시각(KST) 이후에도 오늘 식단이 없으면 운영자에게 메일 1통 (빈 주소면 스크립트 소유자)
+var WATCHDOG_H = 9, WATCHDOG_M = 15;
+var WATCHDOG_EMAIL = PROPS.getProperty('WATCHDOG_EMAIL') || '';   // 스크립트 속성에서 읽음 (공개 저장소에 주소를 두지 않기 위함)
+
 // --- Telegram API ---
 
 function tgSend(chatId, text) {
@@ -441,6 +445,38 @@ function scheduledTasks() {
   if (dirty) saveSentLog(sentLog);
 }
 
+// --- Watchdog: crawler/cron failure alert (email, once per day) ---
+
+function watchdogCheck() {
+  if (findHoliday()) return;
+  var t = now();
+  if (t.day === 0 || t.day === 6) return;
+  if (t.h < WATCHDOG_H || (t.h === WATCHDOG_H && t.m < WATCHDOG_M)) return;
+  if (t.h >= 19) return;
+  if (isUpdated(getMeal())) return;
+  var today = todayStr();
+  if (PROPS.getProperty('watchdogAlerted') === today) return;
+
+  try {
+    var to = WATCHDOG_EMAIL || Session.getEffectiveUser().getEmail();
+    var subject = '[KRIBB meal] ' + today + ' 식단 미갱신';
+    var body = '확인 시각(KST): ' + pad(t.h) + ':' + pad(t.m) + '\n'
+      + '오늘(' + today + ') 식단 데이터가 아직 수신되지 않았습니다.\n\n'
+      + '가능한 원인\n'
+      + '- 크롤러 실패\n'
+      + '- 서버 또는 cron 중단\n'
+      + '- 원 사이트에 식단 미게시\n\n'
+      + '조치\n'
+      + '- 서버에서 수동 실행: node kribb-meal-bot.mjs\n'
+      + '- 크롤러 및 cron 로그 확인\n';
+    MailApp.sendEmail(to, subject, body);
+    PROPS.setProperty('watchdogAlerted', today);
+    Logger.log('Watchdog alert sent to ' + to);
+  } catch (err) {
+    Logger.log('Watchdog email failed: ' + err);
+  }
+}
+
 // --- Polling (backup for webhook) ---
 
 function pollMessages() {
@@ -522,6 +558,7 @@ function tick() {
     lock.waitLock(5000);
     migrateIfNeeded();
     scheduledTasks();
+    watchdogCheck();
     catchUpSend();
     pollMessages();
   } catch (err) {
