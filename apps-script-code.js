@@ -25,7 +25,7 @@ var HOLIDAY_RANGES = [
 
 // 식단 미갱신 감시: 평일 이 시각(KST) 이후에도 오늘 식단이 없으면 운영자에게 메일 1통 (빈 주소면 스크립트 소유자)
 var WATCHDOG_H = 9, WATCHDOG_M = 15;
-var WATCHDOG_EMAIL = '';
+var WATCHDOG_EMAIL = PROPS.getProperty('WATCHDOG_EMAIL') || '';   // 스크립트 속성에서 읽음 (공개 저장소에 주소를 두지 않기 위함)
 
 // --- Telegram API ---
 
