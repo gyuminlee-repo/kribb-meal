@@ -11,6 +11,10 @@
  * 휴가 스킵: HOLIDAY_RANGES(KST 기준)에 오늘이 포함되면 크롤링 없이 즉시 종료한다.
  * IGNORE_HOLIDAY=1 을 주면 스킵을 무시한다 (--force 로는 무시되지 않음).
  *
+ * heartbeat: 주말·휴가 스킵을 지나 실제로 시도한 실행은 결과와 무관하게 끝에서
+ * Apps Script 에 action 'heartbeat' 를 보낸다 (ok | already | not_posted | error).
+ * 전송 실패는 경고만 남기고 종료코드에 영향을 주지 않는다.
+ *
  * cron (평일 08:25 + 랜덤 0~600초 딜레이 + 재부팅):
  *   25 8 * * 1-5 sleep $((RANDOM % 600)) && cd /mnt/d/_workspace/030.repos/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
  *   @reboot sleep 15 && cd /mnt/d/_workspace/030.repos/kribb-meal && LD_LIBRARY_PATH="/home/gml/miniforge3/lib" node kribb-meal-bot.mjs >> /tmp/kribb-meal-bot.log 2>&1
@@ -217,6 +221,18 @@ async function uploadToWorker(data) {
   }
 }
 
+// --- Heartbeat (non-fatal) ---
+// 응답 내용은 검사하지 않는다. heartbeat 를 모르는 옛 Apps Script 는 'ok' 텍스트를 돌려준다.
+
+async function sendHeartbeat(status, detail = "") {
+  if (process.env.SKIP_APPS_SCRIPT === '1') return;
+  try {
+    await postAppsScript({ action: "heartbeat", status, detail: String(detail).slice(0, 200) });
+  } catch (err) {
+    console.warn(`[${ts()}] heartbeat failed (non-fatal):`, err.message);
+  }
+}
+
 // --- Check if already updated ---
 
 async function checkMeal() {
@@ -256,6 +272,7 @@ if (!force && process.env.SKIP_APPS_SCRIPT !== '1') {
     const updated = await checkMeal();
     if (updated) {
       // 이미 업데이트됨: 로그 없이 조용히 종료
+      await sendHeartbeat("already");
       process.exit(0);
     }
     console.log(`[${ts()}] Data missing or cleared. Recovering...`);
@@ -324,11 +341,14 @@ try {
     console.log('Apps Script:', res);
   }
   await uploadToWorker(data);
+  await sendHeartbeat("ok", data.date);
 } catch (err) {
   if (err.noData) {
     console.log(`[${ts()}] ${err.message} — skip`);
+    await sendHeartbeat("not_posted", err.message);
     process.exit(0);
   }
   console.error(`[${ts()}] Error:`, err.message);
+  await sendHeartbeat("error", err.message);
   process.exit(1);
 }

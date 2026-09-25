@@ -556,6 +556,27 @@ function scheduledTasks() {
 
 // --- Watchdog: crawler/cron failure alert (email, once per day) ---
 
+// 크롤러 heartbeat status → 메일 진단 문구
+var HEARTBEAT_STATUS_KR = {
+  ok: '업로드 성공 보고됐으나 식단 없음(저장 실패 의심)',
+  already: '업로드 성공 보고됐으나 식단 없음(저장 실패 의심)',
+  not_posted: '원 사이트에 식단 미게시',
+  error: '크롤러 오류'
+};
+
+// 스크립트 속성 lastHeartbeat 로 오늘 크롤러가 돌았는지 진단 한 줄(오류면 두 줄)을 만든다.
+function heartbeatDiagnosis() {
+  var hb = null;
+  try { hb = JSON.parse(PROPS.getProperty('lastHeartbeat') || 'null'); } catch (err) {}
+  if (hb && hb.date === todayStr()) {
+    var line = '크롤러 실행됨 (' + String(hb.at || '').slice(11) + ', 결과: '
+      + (HEARTBEAT_STATUS_KR[hb.status] || hb.status) + ')';
+    if (hb.status === 'error' && hb.detail) line += '\n오류 내용: ' + hb.detail;
+    return line;
+  }
+  return '오늘 크롤러 실행 기록 없음 (마지막: ' + ((hb && hb.at) || '기록 없음') + '), 서버 또는 cron 중단 의심';
+}
+
 function watchdogCheck() {
   if (findHoliday()) return;
   var t = now();
@@ -574,6 +595,7 @@ function watchdogCheck() {
     var gap = weekdaysSince(PROPS.getProperty('lastMealDate'));   // 마지막 식단 이후 평일 수
     var body = '확인 시각(KST): ' + pad(t.h) + ':' + pad(t.m) + '\n'
       + '오늘(' + today + ') 식단 데이터가 아직 수신되지 않았습니다.\n\n'
+      + '진단: ' + heartbeatDiagnosis() + '\n\n'
       + '가능한 원인\n'
       + '- 크롤러 실패\n'
       + '- 서버 또는 cron 중단\n'
@@ -616,7 +638,7 @@ function doPost(e) {
   }
 
   // Crawler actions require shared secret
-  if (body.action === 'check_meal' || body.action === 'update_meal' || body.action === 'force_broadcast') {
+  if (body.action === 'check_meal' || body.action === 'update_meal' || body.action === 'force_broadcast' || body.action === 'heartbeat') {
     var secret = PROPS.getProperty('SHARED_SECRET');
     if (!secret || body.secret !== secret) {
       return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Unauthorized' }));
@@ -642,6 +664,15 @@ function doPost(e) {
       try { tgSend(users[i], prefix + msgAll(data)); sent++; } catch (err) {}
     }
     return ContentService.createTextOutput(JSON.stringify({ ok: true, sent: sent, total: users.length }));
+  }
+
+  // 크롤러 실행 기록 (결과와 무관하게 평일 실행마다 1건, 19:00 정리 대상 아님, watchdog 메일 진단에 표기)
+  if (body.action === 'heartbeat') {
+    PROPS.setProperty('lastHeartbeat', JSON.stringify({
+      at: kstStamp(), date: todayStr(),
+      status: String(body.status || ''), detail: String(body.detail || '').slice(0, 200)
+    }));
+    return ContentService.createTextOutput(JSON.stringify({ ok: true }));
   }
 
   // WSL meal data upload
