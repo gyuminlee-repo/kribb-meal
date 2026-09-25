@@ -237,16 +237,9 @@ function isPublicHoliday() {
   return list.indexOf(todayStr()) !== -1;
 }
 
-// --- 임시 휴무일 (관리자 텔레그램 명령으로 등록, 재배포 불필요) ---
-
-var SKIP_MAX_DAYS = 31;
-var SKIP_USAGE = '사용법: /skip YYYY-MM-DD [YYYY-MM-DD] | /unskip YYYY-MM-DD | /skips';
-
-// 스크립트 속성 ADMIN_CHAT_ID 와 일치하면 관리자. 속성이 비어 있으면 아무도 아님.
-function isAdmin(chatId) {
-  var admin = (PROPS.getProperty('ADMIN_CHAT_ID') || '').trim();
-  return admin !== '' && String(chatId) === admin;
-}
+// --- 날짜 목록 스크립트 속성 (SKIP_DATES, WORK_DATES, 재배포 불필요) ---
+// 형식: 쉼표 구분, 각 항목은 'YYYY-MM-DD' 또는 'YYYY-MM-DD~YYYY-MM-DD'(양끝 포함), 공백 허용.
+// 예: '2026-10-30, 2026-12-28~2027-01-02'
 
 // 'YYYY-MM-DD' → UTC 자정 Date. 형식 오류나 달력에 없는 날짜면 null.
 function parseYmd(str) {
@@ -257,67 +250,32 @@ function parseYmd(str) {
   return d;
 }
 
-function slashDate(d) {
-  return d.getUTCFullYear() + '/' + pad(d.getUTCMonth() + 1) + '/' + pad(d.getUTCDate());
-}
-
-// 저장된 휴무일 중 오늘 이후만 정렬해 반환
-function getSkipDates() {
-  var raw = PROPS.getProperty('skipDates');
-  var today = todayStr();
-  return (raw ? JSON.parse(raw) : []).filter(function (s) { return s >= today; }).sort();
-}
-
-function isSkipDate() {
-  var raw = PROPS.getProperty('skipDates');
-  return (raw ? JSON.parse(raw) : []).indexOf(todayStr()) !== -1;
-}
-
-function handleSkip(chatId, text) {
-  var parts = text.trim().split(/\s+/);
-  var cmd = parts[0];
-  var list = getSkipDates();   // 과거 날짜 정리
-
-  if (cmd === '/skips' && parts.length === 1) {
-    PROPS.setProperty('skipDates', JSON.stringify(list));
-    tgSend(chatId, list.length
-      ? '등록된 휴무일\n' + list.map(function (s) { return s.replace(/\//g, '-'); }).join('\n')
-      : '등록된 휴무일 없음');
-    return;
-  }
-
-  if (cmd === '/unskip' && parts.length === 2 && parseYmd(parts[1])) {
-    var key = slashDate(parseYmd(parts[1]));
-    var idx = list.indexOf(key);
-    if (idx !== -1) list.splice(idx, 1);
-    PROPS.setProperty('skipDates', JSON.stringify(list));
-    tgSend(chatId, idx !== -1 ? '휴무일 해제: ' + parts[1] : '등록되지 않은 날짜: ' + parts[1]);
-    return;
-  }
-
-  if (cmd === '/skip' && (parts.length === 2 || parts.length === 3)) {
-    var from = parseYmd(parts[1]);
-    var to = parts.length === 3 ? parseYmd(parts[2]) : from;
-    if (from && to && to.getTime() >= from.getTime()) {
-      var days = Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
-      if (days > SKIP_MAX_DAYS) {
-        tgSend(chatId, '범위는 최대 ' + SKIP_MAX_DAYS + '일까지 등록할 수 있습니다 (요청 ' + days + '일).');
-        return;
-      }
-      var today = todayStr();
-      for (var d = new Date(from.getTime()); d.getTime() <= to.getTime(); d.setUTCDate(d.getUTCDate() + 1)) {
-        var s = slashDate(d);
-        if (s >= today && list.indexOf(s) === -1) list.push(s);
-      }
-      list.sort();
-      PROPS.setProperty('skipDates', JSON.stringify(list));
-      tgSend(chatId, '휴무일 등록: ' + parts[1] + (parts.length === 3 ? ' ~ ' + parts[2] : '') + ' (' + days + '일)');
-      return;
+// 스크립트 속성 name 의 날짜 목록에 오늘(KST)이 들어 있으면 true. 잘못된 항목은 로그만 남기고 무시.
+// 'YYYY-MM-DD' 고정폭 문자열이라 사전순 비교가 날짜 비교와 일치한다.
+function dateListHasToday(name) {
+  var items = (PROPS.getProperty(name) || '').split(',');
+  var today = todayStr().replace(/\//g, '-');
+  var hit = false;
+  for (var i = 0; i < items.length; i++) {
+    var item = items[i].trim();
+    if (!item) continue;
+    var ends = item.split('~');
+    var from = ends[0].trim();
+    var to = ends.length === 2 ? ends[1].trim() : from;
+    if (ends.length > 2 || !parseYmd(from) || !parseYmd(to) || to < from) {
+      Logger.log(name + ': 잘못된 항목 무시: ' + item);
+      continue;
     }
+    if (today >= from && today <= to) hit = true;
   }
-
-  tgSend(chatId, SKIP_USAGE);
+  return hit;
 }
+
+// 임시 휴무일: HOLIDAY_RANGES 에 없는 갑작스러운 휴무 (watchdog 메일만 건너뜀)
+function isSkipDate() { return dateListHasToday('SKIP_DATES'); }
+
+// 공휴일 예외: 법정 공휴일이어도 식당이 여는 날 (watchdog 이 평일로 보고 감시). SKIP_DATES 가 우선.
+function isWorkDate() { return dateListHasToday('WORK_DATES'); }
 
 function isUpdated(data) {
   return data && data.date === todayStr() && (data.lunchA || data.dinner);
@@ -476,7 +434,6 @@ function handleCommand(chatId, text) {
   else if (text === '/settings') handleSettings(chatId);
   else if (text.indexOf('/setlunch') === 0) handleSetTime(chatId, 'lunch', text);
   else if (text.indexOf('/setdinner') === 0) handleSetTime(chatId, 'dinner', text);
-  else if (/^\/(skip|unskip|skips)(\s|$)/.test(text) && isAdmin(chatId)) handleSkip(chatId, text);   // 관리자 전용, 도움말에 없음
 }
 
 // --- Broadcast (kept for manual/admin use) ---
@@ -599,12 +556,33 @@ function scheduledTasks() {
 
 // --- Watchdog: crawler/cron failure alert (email, once per day) ---
 
+// 크롤러 heartbeat status → 메일 진단 문구
+var HEARTBEAT_STATUS_KR = {
+  ok: '업로드 성공 보고됐으나 식단 없음(저장 실패 의심)',
+  already: '업로드 성공 보고됐으나 식단 없음(저장 실패 의심)',
+  not_posted: '원 사이트에 식단 미게시',
+  error: '크롤러 오류'
+};
+
+// 스크립트 속성 lastHeartbeat 로 오늘 크롤러가 돌았는지 진단 한 줄(오류면 두 줄)을 만든다.
+function heartbeatDiagnosis() {
+  var hb = null;
+  try { hb = JSON.parse(PROPS.getProperty('lastHeartbeat') || 'null'); } catch (err) {}
+  if (hb && hb.date === todayStr()) {
+    var line = '크롤러 실행됨 (' + String(hb.at || '').slice(11) + ', 결과: '
+      + (HEARTBEAT_STATUS_KR[hb.status] || hb.status) + ')';
+    if (hb.status === 'error' && hb.detail) line += '\n오류 내용: ' + hb.detail;
+    return line;
+  }
+  return '오늘 크롤러 실행 기록 없음 (마지막: ' + ((hb && hb.at) || '기록 없음') + '), 서버 또는 cron 중단 의심';
+}
+
 function watchdogCheck() {
   if (findHoliday()) return;
   var t = now();
   if (t.day === 0 || t.day === 6) return;
-  if (isPublicHoliday()) return;
-  if (isSkipDate()) return;   // 관리자가 등록한 임시 휴무일
+  if (isSkipDate()) return;   // 스크립트 속성 SKIP_DATES 의 임시 휴무일 (WORK_DATES 보다 우선)
+  if (isPublicHoliday() && !isWorkDate()) return;   // WORK_DATES 에 적힌 공휴일은 감시
   if (t.h < WATCHDOG_H || (t.h === WATCHDOG_H && t.m < WATCHDOG_M)) return;
   if (t.h >= 19) return;
   if (isUpdated(getMeal())) return;
@@ -617,6 +595,7 @@ function watchdogCheck() {
     var gap = weekdaysSince(PROPS.getProperty('lastMealDate'));   // 마지막 식단 이후 평일 수
     var body = '확인 시각(KST): ' + pad(t.h) + ':' + pad(t.m) + '\n'
       + '오늘(' + today + ') 식단 데이터가 아직 수신되지 않았습니다.\n\n'
+      + '진단: ' + heartbeatDiagnosis() + '\n\n'
       + '가능한 원인\n'
       + '- 크롤러 실패\n'
       + '- 서버 또는 cron 중단\n'
@@ -659,7 +638,7 @@ function doPost(e) {
   }
 
   // Crawler actions require shared secret
-  if (body.action === 'check_meal' || body.action === 'update_meal' || body.action === 'force_broadcast') {
+  if (body.action === 'check_meal' || body.action === 'update_meal' || body.action === 'force_broadcast' || body.action === 'heartbeat') {
     var secret = PROPS.getProperty('SHARED_SECRET');
     if (!secret || body.secret !== secret) {
       return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Unauthorized' }));
@@ -685,6 +664,15 @@ function doPost(e) {
       try { tgSend(users[i], prefix + msgAll(data)); sent++; } catch (err) {}
     }
     return ContentService.createTextOutput(JSON.stringify({ ok: true, sent: sent, total: users.length }));
+  }
+
+  // 크롤러 실행 기록 (결과와 무관하게 평일 실행마다 1건, 19:00 정리 대상 아님, watchdog 메일 진단에 표기)
+  if (body.action === 'heartbeat') {
+    PROPS.setProperty('lastHeartbeat', JSON.stringify({
+      at: kstStamp(), date: todayStr(),
+      status: String(body.status || ''), detail: String(body.detail || '').slice(0, 200)
+    }));
+    return ContentService.createTextOutput(JSON.stringify({ ok: true }));
   }
 
   // WSL meal data upload
