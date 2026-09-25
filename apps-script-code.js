@@ -168,6 +168,53 @@ function findHoliday() {
   return null;
 }
 
+// --- 법정 공휴일 (Google 공개 대한민국 휴일 캘린더) ---
+
+var KR_HOLIDAY_ICS = 'https://calendar.google.com/calendar/ical/ko.south_korea%23holiday%40group.v.calendar.google.com/public/basic.ics';
+
+// ICS 본문에서 DESCRIPTION이 '공휴일'로 시작하는 종일 일정의 날짜만 'YYYY/MM/DD'로 반환.
+// '기념일'(국군의날, 어버이날 등)은 제외. 대체공휴일('쉬는 날 ...')은 DESCRIPTION이 '공휴일'이라 포함.
+function parseHolidayIcs(text) {
+  var lines = text.replace(/\r\n[ \t]/g, '').split(/\r?\n/);  // 줄 접힘 해제
+  var out = [];
+  var date = null, desc = '';
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (line === 'BEGIN:VEVENT') { date = null; desc = ''; }
+    else if (line.indexOf('DTSTART;VALUE=DATE:') === 0) {
+      var d = line.substring(19);
+      date = d.substring(0, 4) + '/' + d.substring(4, 6) + '/' + d.substring(6, 8);
+    }
+    else if (line.indexOf('DESCRIPTION:') === 0) desc = line.substring(12);
+    else if (line === 'END:VEVENT' && date && desc.indexOf('공휴일') === 0) out.push(date);
+  }
+  return out;
+}
+
+// 오늘이 법정 공휴일이면 true. 목록은 6시간 캐시. fetch 실패 시 false(메일 발송 쪽으로 fail-open).
+function isPublicHoliday() {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get('krHolidays');
+  var list;
+  if (cached) {
+    list = JSON.parse(cached);
+  } else {
+    try {
+      var res = UrlFetchApp.fetch(KR_HOLIDAY_ICS, { muteHttpExceptions: true });
+      if (res.getResponseCode() !== 200) {
+        Logger.log('Holiday ICS fetch failed: HTTP ' + res.getResponseCode());
+        return false;
+      }
+      list = parseHolidayIcs(res.getContentText('UTF-8'));
+      cache.put('krHolidays', JSON.stringify(list), 21600);
+    } catch (err) {
+      Logger.log('Holiday ICS fetch failed: ' + err);
+      return false;
+    }
+  }
+  return list.indexOf(todayStr()) !== -1;
+}
+
 function isUpdated(data) {
   return data && data.date === todayStr() && (data.lunchA || data.dinner);
 }
@@ -451,6 +498,7 @@ function watchdogCheck() {
   if (findHoliday()) return;
   var t = now();
   if (t.day === 0 || t.day === 6) return;
+  if (isPublicHoliday()) return;
   if (t.h < WATCHDOG_H || (t.h === WATCHDOG_H && t.m < WATCHDOG_M)) return;
   if (t.h >= 19) return;
   if (isUpdated(getMeal())) return;
