@@ -237,7 +237,7 @@ function isPublicHoliday() {
   return list.indexOf(todayStr()) !== -1;
 }
 
-// --- 날짜 목록 스크립트 속성 (SKIP_DATES, 재배포 불필요) ---
+// --- 날짜 목록 스크립트 속성 (SKIP_DATES, WORK_DATES, 재배포 불필요) ---
 // 형식: 쉼표 구분, 각 항목은 'YYYY-MM-DD' 또는 'YYYY-MM-DD~YYYY-MM-DD'(양끝 포함), 공백 허용.
 // 예: '2026-10-30, 2026-12-28~2027-01-02'
 
@@ -273,6 +273,9 @@ function dateListHasToday(name) {
 
 // 임시 휴무일: HOLIDAY_RANGES 에 없는 갑작스러운 휴무 (watchdog 메일만 건너뜀)
 function isSkipDate() { return dateListHasToday('SKIP_DATES'); }
+
+// 공휴일 예외: 법정 공휴일이어도 식당이 여는 날 (watchdog 이 평일로 보고 감시). SKIP_DATES 가 우선.
+function isWorkDate() { return dateListHasToday('WORK_DATES'); }
 
 function isUpdated(data) {
   return data && data.date === todayStr() && (data.lunchA || data.dinner);
@@ -557,8 +560,8 @@ function watchdogCheck() {
   if (findHoliday()) return;
   var t = now();
   if (t.day === 0 || t.day === 6) return;
-  if (isPublicHoliday()) return;
-  if (isSkipDate()) return;   // 스크립트 속성 SKIP_DATES 의 임시 휴무일
+  if (isSkipDate()) return;   // 스크립트 속성 SKIP_DATES 의 임시 휴무일 (WORK_DATES 보다 우선)
+  if (isPublicHoliday() && !isWorkDate()) return;   // WORK_DATES 에 적힌 공휴일은 감시
   if (t.h < WATCHDOG_H || (t.h === WATCHDOG_H && t.m < WATCHDOG_M)) return;
   if (t.h >= 19) return;
   if (isUpdated(getMeal())) return;
