@@ -237,6 +237,88 @@ function isPublicHoliday() {
   return list.indexOf(todayStr()) !== -1;
 }
 
+// --- 임시 휴무일 (관리자 텔레그램 명령으로 등록, 재배포 불필요) ---
+
+var SKIP_MAX_DAYS = 31;
+var SKIP_USAGE = '사용법: /skip YYYY-MM-DD [YYYY-MM-DD] | /unskip YYYY-MM-DD | /skips';
+
+// 스크립트 속성 ADMIN_CHAT_ID 와 일치하면 관리자. 속성이 비어 있으면 아무도 아님.
+function isAdmin(chatId) {
+  var admin = (PROPS.getProperty('ADMIN_CHAT_ID') || '').trim();
+  return admin !== '' && String(chatId) === admin;
+}
+
+// 'YYYY-MM-DD' → UTC 자정 Date. 형식 오류나 달력에 없는 날짜면 null.
+function parseYmd(str) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str || '');
+  if (!m) return null;
+  var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  if (d.getUTCMonth() !== +m[2] - 1 || d.getUTCDate() !== +m[3]) return null;
+  return d;
+}
+
+function slashDate(d) {
+  return d.getUTCFullYear() + '/' + pad(d.getUTCMonth() + 1) + '/' + pad(d.getUTCDate());
+}
+
+// 저장된 휴무일 중 오늘 이후만 정렬해 반환
+function getSkipDates() {
+  var raw = PROPS.getProperty('skipDates');
+  var today = todayStr();
+  return (raw ? JSON.parse(raw) : []).filter(function (s) { return s >= today; }).sort();
+}
+
+function isSkipDate() {
+  var raw = PROPS.getProperty('skipDates');
+  return (raw ? JSON.parse(raw) : []).indexOf(todayStr()) !== -1;
+}
+
+function handleSkip(chatId, text) {
+  var parts = text.trim().split(/\s+/);
+  var cmd = parts[0];
+  var list = getSkipDates();   // 과거 날짜 정리
+
+  if (cmd === '/skips' && parts.length === 1) {
+    PROPS.setProperty('skipDates', JSON.stringify(list));
+    tgSend(chatId, list.length
+      ? '등록된 휴무일\n' + list.map(function (s) { return s.replace(/\//g, '-'); }).join('\n')
+      : '등록된 휴무일 없음');
+    return;
+  }
+
+  if (cmd === '/unskip' && parts.length === 2 && parseYmd(parts[1])) {
+    var key = slashDate(parseYmd(parts[1]));
+    var idx = list.indexOf(key);
+    if (idx !== -1) list.splice(idx, 1);
+    PROPS.setProperty('skipDates', JSON.stringify(list));
+    tgSend(chatId, idx !== -1 ? '휴무일 해제: ' + parts[1] : '등록되지 않은 날짜: ' + parts[1]);
+    return;
+  }
+
+  if (cmd === '/skip' && (parts.length === 2 || parts.length === 3)) {
+    var from = parseYmd(parts[1]);
+    var to = parts.length === 3 ? parseYmd(parts[2]) : from;
+    if (from && to && to.getTime() >= from.getTime()) {
+      var days = Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
+      if (days > SKIP_MAX_DAYS) {
+        tgSend(chatId, '범위는 최대 ' + SKIP_MAX_DAYS + '일까지 등록할 수 있습니다 (요청 ' + days + '일).');
+        return;
+      }
+      var today = todayStr();
+      for (var d = new Date(from.getTime()); d.getTime() <= to.getTime(); d.setUTCDate(d.getUTCDate() + 1)) {
+        var s = slashDate(d);
+        if (s >= today && list.indexOf(s) === -1) list.push(s);
+      }
+      list.sort();
+      PROPS.setProperty('skipDates', JSON.stringify(list));
+      tgSend(chatId, '휴무일 등록: ' + parts[1] + (parts.length === 3 ? ' ~ ' + parts[2] : '') + ' (' + days + '일)');
+      return;
+    }
+  }
+
+  tgSend(chatId, SKIP_USAGE);
+}
+
 function isUpdated(data) {
   return data && data.date === todayStr() && (data.lunchA || data.dinner);
 }
@@ -394,6 +476,7 @@ function handleCommand(chatId, text) {
   else if (text === '/settings') handleSettings(chatId);
   else if (text.indexOf('/setlunch') === 0) handleSetTime(chatId, 'lunch', text);
   else if (text.indexOf('/setdinner') === 0) handleSetTime(chatId, 'dinner', text);
+  else if (/^\/(skip|unskip|skips)(\s|$)/.test(text) && isAdmin(chatId)) handleSkip(chatId, text);   // 관리자 전용, 도움말에 없음
 }
 
 // --- Broadcast (kept for manual/admin use) ---
@@ -521,6 +604,7 @@ function watchdogCheck() {
   var t = now();
   if (t.day === 0 || t.day === 6) return;
   if (isPublicHoliday()) return;
+  if (isSkipDate()) return;   // 관리자가 등록한 임시 휴무일
   if (t.h < WATCHDOG_H || (t.h === WATCHDOG_H && t.m < WATCHDOG_M)) return;
   if (t.h >= 19) return;
   if (isUpdated(getMeal())) return;
