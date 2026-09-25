@@ -157,6 +157,28 @@ function now() {
   return { h: t.getUTCHours(), m: t.getUTCMinutes(), day: t.getUTCDay() };
 }
 
+// KST 'YYYY/MM/DD HH:MM'
+function kstStamp() {
+  var t = kstDate();
+  return todayStr() + ' ' + pad(t.getUTCHours()) + ':' + pad(t.getUTCMinutes());
+}
+
+// 'YYYY/MM/DD' 다음 날부터 오늘까지(오늘 포함) 평일 수. 형식 오류면 -1.
+function weekdaysSince(dateStr) {
+  var m = /^(\d{4})\/(\d{2})\/(\d{2})$/.exec(dateStr || '');
+  if (!m) return -1;
+  var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  var today = todayStr();
+  var n = 0;
+  for (var i = 0; i < 366; i++) {   // 안전 상한 1년
+    d.setUTCDate(d.getUTCDate() + 1);
+    var s = d.getUTCFullYear() + '/' + pad(d.getUTCMonth() + 1) + '/' + pad(d.getUTCDate());
+    if (s > today) break;
+    if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) n++;
+  }
+  return n;
+}
+
 // 오늘이 미운영 기간이면 해당 range 객체, 아니면 null.
 // 'YYYY/MM/DD' 고정폭 문자열이라 사전순 비교가 날짜 비교와 일치한다.
 function findHoliday() {
@@ -508,12 +530,16 @@ function watchdogCheck() {
   try {
     var to = WATCHDOG_EMAIL || Session.getEffectiveUser().getEmail();
     var subject = '[KRIBB meal] ' + today + ' 식단 미갱신';
+    var gap = weekdaysSince(PROPS.getProperty('lastMealDate'));   // 마지막 식단 이후 평일 수
     var body = '확인 시각(KST): ' + pad(t.h) + ':' + pad(t.m) + '\n'
       + '오늘(' + today + ') 식단 데이터가 아직 수신되지 않았습니다.\n\n'
       + '가능한 원인\n'
       + '- 크롤러 실패\n'
       + '- 서버 또는 cron 중단\n'
       + '- 원 사이트에 식단 미게시\n\n'
+      + '마지막 식단 수신: ' + (PROPS.getProperty('lastMealAt') || '기록 없음') + '\n'
+      + (gap >= 2 ? '며칠째 미수신 상태입니다 (평일 기준 ' + gap + '일째).\n' : '')
+      + '\n'
       + '조치\n'
       + '- 서버에서 수동 실행: node kribb-meal-bot.mjs\n'
       + '- 크롤러 및 cron 로그 확인\n';
@@ -583,6 +609,9 @@ function doPost(e) {
     try {
       lock.waitLock(5000);
       saveMeal(body.data);
+      // 마지막 수신 기록 (19:00 정리 대상 아님, watchdog 메일에 표기)
+      if (body.data && body.data.date) PROPS.setProperty('lastMealDate', String(body.data.date));
+      PROPS.setProperty('lastMealAt', kstStamp());
       catchUpSend();
     } finally {
       lock.releaseLock();
